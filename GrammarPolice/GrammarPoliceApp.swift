@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
+import SwiftData
+import Combine
 
 @main
 struct GrammarPoliceApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        Settings {
+            EmptyView()
         }
     }
 }
