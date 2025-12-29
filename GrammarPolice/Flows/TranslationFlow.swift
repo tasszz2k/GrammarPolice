@@ -140,9 +140,9 @@ final class TranslationFlow {
         // Step 5: Unmask tokens
         let translatedText = maskingService.unmaskTokens(in: translatedMasked, using: maskResult.mapping)
         
-        // Step 6: Show translation in notification (does not modify clipboard)
-        notificationService.showTranslationComplete(preview: translatedText, targetLanguage: targetLanguage)
-        LoggingService.shared.log("Translation complete, shown in notification", level: .debug)
+        // Step 6: Show translation in dialog (does not modify clipboard)
+        notificationService.showTranslationDialog(translatedText: translatedText, targetLanguage: targetLanguage)
+        LoggingService.shared.log("Translation complete, shown in dialog", level: .debug)
         
         // Step 7: Save to history
         saveHistory(

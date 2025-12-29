@@ -60,9 +60,39 @@ final class NotificationService: NSObject {
     func showTranslationComplete(preview: String, targetLanguage: String) {
         showNotification(
             title: "Translated to \(targetLanguage)",
-            body: truncateText(preview, maxLength: 100) + "\n\nPaste with Cmd+V",
+            body: truncateText(preview, maxLength: 100),
             identifier: "translation-complete"
         )
+    }
+    
+    @MainActor
+    func showTranslationDialog(translatedText: String, targetLanguage: String) {
+        let alert = NSAlert()
+        alert.messageText = "Translation to \(targetLanguage)"
+        alert.informativeText = translatedText
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        
+        // Make the alert text selectable by using an accessory view
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .bezelBorder
+        
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 380, height: 200))
+        textView.string = translatedText
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.autoresizingMask = [.width]
+        
+        scrollView.documentView = textView
+        alert.accessoryView = scrollView
+        alert.informativeText = "" // Clear since we use accessory view
+        
+        alert.runModal()
     }
     
     func showNoTextSelected() {
