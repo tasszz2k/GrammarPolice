@@ -17,6 +17,8 @@ final class HotkeyManager {
     
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var permissionCheckTimer: Timer?
+    private var wasAccessibilityGranted = false
     
     // Hotkey configurations
     private var grammarHotkey: HotkeyConfig
@@ -25,10 +27,12 @@ final class HotkeyManager {
     init() {
         self.grammarHotkey = SettingsManager.shared.grammarHotkey
         self.translateHotkey = SettingsManager.shared.translateHotkey
+        self.wasAccessibilityGranted = AXIsProcessTrusted()
     }
     
     deinit {
         unregisterAllHotkeys()
+        permissionCheckTimer?.invalidate()
     }
     
     // MARK: - Registration
@@ -59,6 +63,50 @@ final class HotkeyManager {
             LoggingService.shared.log("Hotkeys registered successfully", level: .info)
         } else {
             LoggingService.shared.log("Failed to register global hotkey monitor. Make sure Accessibility is enabled.", level: .error)
+        }
+        
+        // If accessibility is not granted, start polling to re-register when granted
+        if !trusted {
+            startPermissionPolling()
+        }
+    }
+    
+    // MARK: - Permission Polling
+    
+    private func startPermissionPolling() {
+        permissionCheckTimer?.invalidate()
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.checkAndReregisterIfNeeded()
+        }
+    }
+    
+    private func checkAndReregisterIfNeeded() {
+        let nowTrusted = AXIsProcessTrusted()
+        
+        if nowTrusted && !wasAccessibilityGranted {
+            // Permission was just granted - re-register hotkeys
+            wasAccessibilityGranted = true
+            permissionCheckTimer?.invalidate()
+            permissionCheckTimer = nil
+            
+            LoggingService.shared.log("Accessibility permission granted - re-registering hotkeys", level: .info)
+            
+            // Unregister and re-register to get working monitors
+            unregisterAllHotkeys()
+            
+            // Re-register (but don't start polling again since we now have permission)
+            globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                self?.handleKeyEvent(event)
+            }
+            
+            localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                if self?.handleKeyEvent(event) == true {
+                    return nil
+                }
+                return event
+            }
+            
+            LoggingService.shared.log("Hotkeys re-registered after permission grant", level: .info)
         }
     }
     
