@@ -7,7 +7,6 @@
 
 import Foundation
 
-@MainActor
 enum LLMError: Error, LocalizedError {
     case noAPIKey
     case invalidURL

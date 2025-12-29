@@ -7,7 +7,6 @@
 
 import Foundation
 
-@MainActor
 enum LocalLLMError: Error, LocalizedError {
     case commandNotConfigured
     case endpointNotConfigured

@@ -32,7 +32,14 @@ final class HotkeyManager {
     }
     
     deinit {
-        unregisterAllHotkeys()
+        // Note: Cannot call MainActor methods from deinit
+        // Clean up monitors directly here
+        if let monitor = globalMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
         permissionCheckTimer?.invalidate()
     }
     
@@ -77,7 +84,9 @@ final class HotkeyManager {
     private func startPermissionPolling() {
         permissionCheckTimer?.invalidate()
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.checkAndReregisterIfNeeded()
+            Task { @MainActor in
+                self?.checkAndReregisterIfNeeded()
+            }
         }
     }
     
