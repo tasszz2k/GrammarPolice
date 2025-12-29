@@ -70,8 +70,8 @@ struct HotkeyConfig: Codable, Equatable {
     var keyCode: UInt32
     var modifiers: UInt32
     
-    static let defaultGrammar = HotkeyConfig(keyCode: 5, modifiers: 768)  // Cmd+Shift+G
-    static let defaultTranslate = HotkeyConfig(keyCode: 17, modifiers: 768)  // Cmd+Shift+T
+    static let defaultGrammar = HotkeyConfig(keyCode: 5, modifiers: 2304)  // Cmd+Option+G
+    static let defaultTranslate = HotkeyConfig(keyCode: 17, modifiers: 2304)  // Cmd+Option+T
     
     var displayString: String {
         var parts: [String] = []

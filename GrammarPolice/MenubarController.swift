@@ -60,7 +60,7 @@ final class MenubarController {
             keyEquivalent: ""
         )
         grammarItem.target = self
-        grammarItem.keyEquivalentModifierMask = [.command, .shift]
+        grammarItem.keyEquivalentModifierMask = [.command, .option]
         grammarItem.keyEquivalent = "g"
         menu?.addItem(grammarItem)
         
@@ -71,7 +71,7 @@ final class MenubarController {
             keyEquivalent: ""
         )
         translateItem.target = self
-        translateItem.keyEquivalentModifierMask = [.command, .shift]
+        translateItem.keyEquivalentModifierMask = [.command, .option]
         translateItem.keyEquivalent = "t"
         menu?.addItem(translateItem)
         
