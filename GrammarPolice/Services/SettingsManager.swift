@@ -284,13 +284,13 @@ final class SettingsManager: ObservableObject {
             userPromptTemplate = customUserPrompt
         }
         
-        let userPrompt = "\(userPromptTemplate)\nText: \"\(maskedText)\""
+        let userPrompt = "\(userPromptTemplate)\n\n\(maskedText)"
         return (systemPrompt, userPrompt)
     }
     
     func getTranslationPrompt(for maskedText: String) -> (system: String, user: String) {
         let systemPrompt = "You are a translation assistant."
-        let userPrompt = "Translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no commentary.\nText: \"\(maskedText)\""
+        let userPrompt = "Translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no quotes, no commentary.\n\n\(maskedText)"
         return (systemPrompt, userPrompt)
     }
     

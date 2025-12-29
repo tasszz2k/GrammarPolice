@@ -169,7 +169,12 @@ final class LocalLLMRunner {
                     }
                     
                     let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                    let result = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var result = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    // Strip surrounding quotes if present
+                    if result.hasPrefix("\"") && result.hasSuffix("\"") && result.count >= 2 {
+                        result = String(result.dropFirst().dropLast())
+                    }
                     
                     LoggingService.shared.logLLMResponse(backend: "LocalCLI", latencyMs: latencyMs, success: true)
                     
@@ -230,7 +235,12 @@ final class LocalLLMRunner {
             }
             
             let ollamaResponse = try JSONDecoder().decode(OllamaResponse.self, from: data)
-            let result = ollamaResponse.response.trimmingCharacters(in: .whitespacesAndNewlines)
+            var result = ollamaResponse.response.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Strip surrounding quotes if present
+            if result.hasPrefix("\"") && result.hasSuffix("\"") && result.count >= 2 {
+                result = String(result.dropFirst().dropLast())
+            }
             
             LoggingService.shared.logLLMResponse(backend: "LocalHTTP", latencyMs: latencyMs, success: true)
             

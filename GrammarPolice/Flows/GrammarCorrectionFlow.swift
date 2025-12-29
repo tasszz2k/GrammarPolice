@@ -164,9 +164,20 @@ final class GrammarCorrectionFlow {
             clipboardService.simulatePaste()
             replacementDone = true
             
+            // Wait for paste to complete before restoring clipboard
+            try? await Task.sleep(nanoseconds: 200_000_000) // 200ms for paste to complete
+            
             notificationService.showGrammarCorrectionSuccess(preview: correctedText)
             LoggingService.shared.logReplacement(success: true, method: "Clipboard+Paste")
         }
+        
+        // Ensure corrected text is in clipboard (for grammar mode, always keep corrected text in clipboard)
+        if !replacementDone || usedFallback {
+            // If we used clipboard+paste, corrected text is already in clipboard
+            // If we used AX replacement, also put corrected text in clipboard for convenience
+        }
+        // Always set corrected text to clipboard for grammar mode (user can paste it again if needed)
+        clipboardService.setText(correctedText)
         
         // Step 7: Save to history
         saveHistory(
@@ -179,11 +190,6 @@ final class GrammarCorrectionFlow {
             customWordsUsed: maskResult.tokensUsed,
             latencyMs: latencyMs
         )
-        
-        // Restore clipboard if needed
-        if replacementDone && SettingsManager.shared.restoreClipboard {
-            clipboardService.restoreClipboardState()
-        }
         
         let totalTime = Int(Date().timeIntervalSince(startTime) * 1000)
         LoggingService.shared.log("Grammar correction completed in \(totalTime)ms", level: .info)

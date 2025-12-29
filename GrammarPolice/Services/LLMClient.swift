@@ -186,7 +186,12 @@ final class LLMClient {
                 throw LLMError.invalidResponse
             }
             
-            let result = firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            var result = firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Strip surrounding quotes if present (LLM sometimes adds them)
+            if result.hasPrefix("\"") && result.hasSuffix("\"") && result.count >= 2 {
+                result = String(result.dropFirst().dropLast())
+            }
             
             LoggingService.shared.logLLMResponse(backend: "OpenAI", latencyMs: latencyMs, success: true)
             
