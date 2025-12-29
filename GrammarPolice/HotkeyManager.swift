@@ -83,10 +83,16 @@ final class HotkeyManager {
     
     private func startPermissionPolling() {
         permissionCheckTimer?.invalidate()
-        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkAndReregisterIfNeeded()
-            }
+        // Use target/selector to avoid capturing `self` in a @Sendable closure
+        let timer = Timer(timeInterval: 1.0, target: self, selector: #selector(permissionTimerFired(_:)), userInfo: nil, repeats: true)
+        permissionCheckTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @objc private func permissionTimerFired(_ timer: Timer) {
+        // We are already on the main run loop; ensure main-actor isolation
+        Task { @MainActor in
+            self.checkAndReregisterIfNeeded()
         }
     }
     
@@ -239,3 +245,4 @@ final class HotkeyRecorder: ObservableObject {
         }
     }
 }
+
