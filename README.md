@@ -52,6 +52,15 @@ Configure hotkeys, LLM backend, grammar modes, and more.
 - Accessibility permission (required for text capture)
 - OpenAI API key or local LLM setup
 
+### Download
+
+Download the latest release from [GitHub Releases](https://github.com/tasszz2k/GrammarPolice/releases):
+
+1. Download `GrammarPolice.zip` from the latest release
+2. Unzip and drag `GrammarPolice.app` to your Applications folder
+3. Right-click the app and select "Open" (first time only, to bypass Gatekeeper)
+4. Grant Accessibility permission when prompted
+
 ### Build from Source
 
 1. Clone the repository:
