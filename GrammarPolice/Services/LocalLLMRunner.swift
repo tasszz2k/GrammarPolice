@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 enum LocalLLMError: Error, LocalizedError {
     case commandNotConfigured
     case endpointNotConfigured
@@ -53,6 +54,7 @@ struct OllamaResponse: Codable {
     let done: Bool
 }
 
+@MainActor
 final class LocalLLMRunner {
     static let shared = LocalLLMRunner()
     

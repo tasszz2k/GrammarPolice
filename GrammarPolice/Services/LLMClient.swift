@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 enum LLMError: Error, LocalizedError {
     case noAPIKey
     case invalidURL
@@ -84,6 +85,7 @@ struct APIErrorResponse: Codable {
     let error: ErrorDetail
 }
 
+@MainActor
 final class LLMClient {
     static let shared = LLMClient()
     

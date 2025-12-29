@@ -13,6 +13,7 @@ struct ClipboardState {
     let changeCount: Int
 }
 
+@MainActor
 final class ClipboardService {
     static let shared = ClipboardService()
     
