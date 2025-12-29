@@ -1,222 +1,228 @@
 # GrammarPolice
 
-A macOS menubar application for grammar correction and translation using AI. Select text in any application, press a hotkey, and get instant corrections or translations.
+A powerful macOS menubar app for instant grammar correction and translation using AI. Works with any application through global hotkeys.
+
+<!-- Add app icon here -->
+![App Icon](docs/images/app-icon.png)
 
 ## Features
 
-- **Global Hotkeys**: Correct grammar (Cmd+Shift+G) or translate (Cmd+Shift+T) from any application
-- **Accessibility API Integration**: Reads and replaces selected text directly in supported apps
-- **Custom Words Protection**: Define words that should never be modified by the AI
-- **Multiple Grammar Modes**: Minimal, Friendly, Work, or Custom prompts
-- **Translation**: Translate to any language (default: Vietnamese)
-- **OpenAI Integration**: Uses GPT-4o-mini or other OpenAI models
-- **Local LLM Support**: Connect to local LLM servers like Ollama
-- **History Tracking**: View and export your correction/translation history
-- **Privacy-Focused**: Requires explicit consent before sending text to remote services
+- **Instant Grammar Correction** - Fix grammar in any app with a single hotkey
+- **Multi-language Translation** - Translate from any language to your preferred target language
+- **Global Hotkeys** - Works across all applications (Slack, VS Code, browsers, native apps)
+- **Custom Words Protection** - Preserve brand names, technical terms, and custom words during correction
+- **Multiple LLM Backends** - Support for OpenAI API and local LLMs (Ollama, LM Studio)
+- **History Tracking** - View and export your correction/translation history
+- **Privacy-focused** - Option to use local LLM for complete privacy
 
-## Requirements
+## Demo
 
+<!-- Add demo GIF here -->
+![Grammar Correction Demo](docs/gifs/grammar-demo.gif)
+
+### Grammar Correction
+Select text in any app and press `Ctrl+Cmd+G` to instantly correct grammar.
+
+<!-- Add grammar correction screenshot -->
+![Grammar Correction](docs/images/grammar-correction.png)
+
+### Translation
+Select text and press `Ctrl+Cmd+T` to translate to your preferred language.
+
+<!-- Add translation demo GIF -->
+![Translation Demo](docs/gifs/translation-demo.gif)
+
+### Preferences
+Configure hotkeys, LLM backend, grammar modes, and more.
+
+<!-- Add preferences screenshot -->
+![Preferences Window](docs/images/preferences.png)
+
+## Installation
+
+### Requirements
 - macOS 14.0 (Sonoma) or later
-- Xcode 15.0 or later
-- OpenAI API key (for cloud-based corrections)
+- Accessibility permission (required for text capture)
+- OpenAI API key or local LLM setup
 
-## Building
+### Build from Source
 
 1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd GrammarPolice
-   ```
+```bash
+git clone https://github.com/yourusername/GrammarPolice.git
+cd GrammarPolice
+```
 
-2. Open the project in Xcode:
-   ```bash
-   open GrammarPolice.xcodeproj
-   ```
+2. Open in Xcode:
+```bash
+open GrammarPolice.xcodeproj
+```
 
-3. Build and run (Cmd+R)
+3. Build and run (`Cmd+R`)
 
-## Permissions
+### First Launch Setup
 
-GrammarPolice requires the following permissions to function properly:
+1. **Grant Accessibility Permission**
+   - Go to System Settings > Privacy & Security > Accessibility
+   - Enable GrammarPolice
+   
+   <!-- Add accessibility permission screenshot -->
+   ![Accessibility Permission](docs/images/accessibility-permission.png)
 
-### Accessibility Permission (Required)
-
-The app needs Accessibility permission to read and replace selected text across applications.
-
-1. When you first run the app, macOS will prompt you to grant Accessibility permission
-2. Go to **System Settings > Privacy & Security > Accessibility**
-3. Enable the toggle for **GrammarPolice**
-4. You may need to restart the app after granting permission
-
-### Notifications Permission (Recommended)
-
-Enable notifications to receive feedback when text is corrected or translated.
-
-1. Go to **System Settings > Notifications > GrammarPolice**
-2. Enable notifications
-
-### Keychain Access
-
-The app stores your OpenAI API key securely in the macOS Keychain.
-
-## Configuration
-
-### OpenAI API Key
-
-1. Open Preferences (click the menubar icon and select "Preferences...")
-2. Go to the **LLM** tab
-3. Click "Set" next to "API Key"
-4. Enter your OpenAI API key
-5. Click "Test Connection" to verify
-
-### Custom Words
-
-Protect specific words from being modified:
-
-1. Open Preferences
-2. Go to the **Custom Words** tab
-3. Click "Add" to add words
-4. Configure case sensitivity and whole-word matching as needed
-5. Import/Export word lists using CSV format
-
-### Grammar Modes
-
-- **Minimal**: Makes only necessary grammar corrections
-- **Friendly**: Adjusts tone to be more friendly
-- **Work**: Professional business writing tone
-- **Custom**: Define your own system and user prompts
-
-### Local LLM
-
-To use a local LLM instead of OpenAI:
-
-1. Open Preferences > LLM tab
-2. Select "Local LLM" as the backend
-3. Choose CLI or HTTP mode
-4. Configure the command or endpoint (e.g., `http://localhost:11434` for Ollama)
+2. **Configure LLM Backend**
+   - Open Preferences (click menubar icon > Preferences)
+   - Go to LLM tab
+   - Enter your OpenAI API key or configure local LLM
 
 ## Usage
 
-1. Select text in any application
-2. Press the hotkey:
-   - **Cmd+Shift+G**: Correct grammar
-   - **Cmd+Shift+T**: Translate
-3. The corrected/translated text will either:
-   - Replace the selection directly (in supported apps)
-   - Be copied to clipboard (use Cmd+V to paste)
+### Hotkeys
 
-## Hotkey Customization
+| Hotkey | Action |
+|--------|--------|
+| `Ctrl+Cmd+G` | Correct grammar of selected text |
+| `Ctrl+Cmd+T` | Translate selected text |
 
-1. Open Preferences > General tab
-2. Click "Change" next to the hotkey you want to modify
-3. Press the new key combination
-4. The hotkey will be updated immediately
+### Grammar Modes
 
-## History
+| Mode | Description |
+|------|-------------|
+| **Minimal** | Fixes only grammar errors, preserves original tone |
+| **Friendly** | Corrects grammar with a friendly, casual tone |
+| **Work** | Professional, business-appropriate corrections |
+| **Custom** | Use your own prompts for custom behavior |
 
-View your correction and translation history:
+### Translation
 
-1. Open Preferences > History tab
-2. Filter by mode (Grammar/Translate)
-3. Search by content
-4. Export to CSV or JSON
-5. Purge old entries
+- Supports **any source language** - auto-detected
+- Target languages: Vietnamese (default), English, Chinese, Japanese, Korean, Spanish, French, German, and more
+- Translation appears in a dialog window (does not modify clipboard)
 
-## Project Structure
+### Custom Words
 
-```
-GrammarPolice/
-  GrammarPolice/
-    AppDelegate.swift           # App lifecycle management
-    MenubarController.swift     # Menubar icon and menu
-    HotkeyManager.swift         # Global hotkey registration
-    
-    Models/
-      AppSettings.swift         # Settings data model
-      CustomWord.swift          # Custom word model
-      HistoryEntry.swift        # SwiftData history model
-    
-    Services/
-      SettingsManager.swift     # UserDefaults settings
-      KeychainService.swift     # Secure API key storage
-      LoggingService.swift      # File-based logging
-      AXSelectionService.swift  # Accessibility API
-      ClipboardService.swift    # Clipboard operations
-      LLMClient.swift           # OpenAI API client
-      LocalLLMRunner.swift      # Local LLM support
-      MaskingService.swift      # Custom word masking
-      HistoryStore.swift        # SwiftData operations
-      NotificationService.swift # macOS notifications
-    
-    Flows/
-      GrammarCorrectionFlow.swift  # Grammar correction orchestration
-      TranslationFlow.swift        # Translation orchestration
-    
-    Preferences/
-      PreferencesView.swift        # Main preferences window
-      GeneralSettingsView.swift    # General settings tab
-      GrammarSettingsView.swift    # Grammar settings tab
-      LLMSettingsView.swift        # LLM settings tab
-      CustomWordsView.swift        # Custom words tab
-      HistoryView.swift            # History tab
-      DebugSettingsView.swift      # Debug settings tab
-  
-  GrammarPoliceTests/
-    MaskingServiceTests.swift      # Masking unit tests
-    CSVExportTests.swift           # Export unit tests
-    SettingsSerializationTests.swift # Settings tests
-```
+Protect specific words from being modified during correction:
 
-## Testing
+<!-- Add custom words screenshot -->
+![Custom Words](docs/images/custom-words.png)
 
-Run the test suite:
+Examples:
+- Brand names: `GrammarPolice`, `iPhone`, `OpenAI`
+- Technical terms: `API`, `JSON`, `OAuth`
+- Names: `John Doe`, `Acme Corp`
 
+## Configuration
+
+### LLM Backends
+
+#### OpenAI (Recommended)
+1. Get an API key from [OpenAI](https://platform.openai.com/)
+2. Enter the key in Preferences > LLM
+3. Select model (gpt-4o-mini recommended for speed/cost balance)
+
+#### Local LLM
+For complete privacy, use a local LLM:
+
+**Ollama:**
 ```bash
-xcodebuild test -project GrammarPolice.xcodeproj -scheme GrammarPolice
+# Install Ollama
+brew install ollama
+
+# Pull a model
+ollama pull llama3
+
+# Start Ollama server
+ollama serve
 ```
 
-Or in Xcode: Product > Test (Cmd+U)
+Then configure in Preferences:
+- Mode: HTTP Endpoint
+- Endpoint: `http://localhost:11434/api/generate`
+- Model: `llama3`
+
+**LM Studio:**
+1. Download and install [LM Studio](https://lmstudio.ai/)
+2. Download a model
+3. Start the local server
+4. Configure endpoint in Preferences
+
+## Screenshots
+
+### Menubar Icon
+<!-- Add menubar screenshot -->
+![Menubar](docs/images/menubar.png)
+
+### Grammar Settings
+<!-- Add grammar settings screenshot -->
+![Grammar Settings](docs/images/grammar-settings.png)
+
+### LLM Settings
+<!-- Add LLM settings screenshot -->
+![LLM Settings](docs/images/llm-settings.png)
+
+### History View
+<!-- Add history screenshot -->
+![History](docs/images/history.png)
+
+### Debug Logs
+<!-- Add debug logs screenshot -->
+![Debug Logs](docs/images/debug-logs.png)
+
+## Supported Applications
+
+GrammarPolice works with virtually any application:
+
+| App Type | Text Capture | Text Replacement |
+|----------|--------------|------------------|
+| Native macOS apps (Notes, TextEdit, Pages) | Accessibility API | Direct replacement |
+| Electron apps (Slack, Discord, VS Code) | Clipboard fallback | Paste simulation |
+| Browsers (Safari, Chrome, Firefox) | Clipboard fallback | Paste simulation |
+| Terminal apps | Clipboard fallback | Paste simulation |
 
 ## Troubleshooting
 
 ### Hotkeys not working
+1. Check Accessibility permission is granted
+2. Restart the app after granting permission
+3. Check for conflicting hotkeys in other apps
 
-1. Ensure Accessibility permission is granted
-2. Check if another app is using the same hotkey
-3. Try restarting the app
+### No text captured
+1. Ensure text is selected before pressing hotkey
+2. Some apps may require clipboard fallback (automatic)
+3. Check debug logs for details
 
-### Text not being replaced
-
-Some applications (like Google Docs in Chrome) don't support direct text replacement. In these cases:
-1. The corrected text will be copied to your clipboard
-2. A notification will inform you to paste manually
-3. Use Cmd+V to paste the corrected text
-
-### API errors
-
-1. Verify your API key is correct
-2. Check your OpenAI account has sufficient credits
-3. Try the "Test Connection" button in Preferences
-
-### Debug logging
-
-Enable debug logging to troubleshoot issues:
-1. Open Preferences > Debug tab
-2. Enable "Debug Logging"
-3. View logs in the Debug tab or export them
+### LLM errors
+1. Verify API key is correct
+2. Check internet connection
+3. For local LLM, ensure server is running
 
 ## Privacy
 
-- Text is only sent to remote LLM services after explicit consent
-- API keys are stored securely in the macOS Keychain
-- Custom words are masked before sending to prevent accidental modification
-- All history is stored locally on your device
+- **OpenAI Mode**: Selected text is sent to OpenAI's servers
+- **Local LLM Mode**: All processing happens locally on your machine
+- No telemetry or analytics
+- History stored locally in SwiftData
+
+## Tech Stack
+
+- **Swift 5** / **SwiftUI** / **AppKit**
+- **SwiftData** for history persistence
+- **Keychain** for secure API key storage
+- **Accessibility APIs** for text capture
+- **NSEvent** for global hotkey monitoring
 
 ## License
 
-[Add your license here]
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-[Add contribution guidelines here]
+Contributions are welcome! Please open an issue or submit a pull request.
 
+## Acknowledgments
+
+- OpenAI for the GPT API
+- The macOS developer community
+
+---
+
+Made with care for better writing everywhere.
