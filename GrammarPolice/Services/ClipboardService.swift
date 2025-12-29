@@ -90,20 +90,26 @@ final class ClipboardService {
             saveClipboardState()
         }
         
-        // Clear clipboard first
+        // Clear clipboard first and record change count
         let initialChangeCount = pasteboard.changeCount
         pasteboard.clearContents()
+        let clearedChangeCount = pasteboard.changeCount
+        
+        LoggingService.shared.log("Clipboard cleared, attempting Cmd+C fallback", level: .debug)
+        
+        // Small delay before sending key event (helps with app responsiveness)
+        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
         
         // Simulate Cmd+C
         simulateCopy()
         
-        // Wait for clipboard to update
-        let capturedText = await waitForClipboardChange(from: initialChangeCount, timeout: 1.0)
+        // Wait for clipboard to update (increased timeout for slow apps like Slack)
+        let capturedText = await waitForClipboardChange(from: clearedChangeCount, timeout: 2.0)
         
-        if shouldRestore && capturedText != nil {
-            // We'll restore after we're done with the operation
-            // For now, just log that we captured text
-            LoggingService.shared.log("Captured text via copy fallback, length: \(capturedText?.count ?? 0)", level: .debug)
+        if let text = capturedText, !text.isEmpty {
+            LoggingService.shared.log("Captured text via copy fallback, length: \(text.count)", level: .debug)
+        } else {
+            LoggingService.shared.log("Copy fallback: no text captured (clipboard unchanged or empty)", level: .debug)
         }
         
         return capturedText
@@ -115,12 +121,18 @@ final class ClipboardService {
         
         while Date().timeIntervalSince(startTime) < timeout {
             if pasteboard.changeCount != changeCount {
-                return getText()
+                // Clipboard changed, but give a tiny bit more time for complete data
+                try? await Task.sleep(nanoseconds: 20_000_000) // 20ms
+                let text = getText()
+                if let t = text, !t.isEmpty {
+                    return t
+                }
             }
             try? await Task.sleep(nanoseconds: UInt64(checkInterval * 1_000_000_000))
         }
         
-        // Timeout reached
+        // Timeout reached - check one final time
+        LoggingService.shared.log("Clipboard capture timeout reached", level: .debug)
         return getText()
     }
     

@@ -105,6 +105,38 @@ final class NotificationService: NSObject {
         )
     }
     
+    func showAPIKeyNotSet() {
+        showNotification(
+            title: "OpenAI API Key Not Set",
+            body: "Please set your OpenAI API key in Preferences > LLM.",
+            identifier: "api-key-not-set"
+        )
+    }
+    
+    func showLocalLLMNotConfigured() {
+        showNotification(
+            title: "Local LLM Not Configured",
+            body: "Please configure your local LLM command or endpoint in Preferences > LLM.",
+            identifier: "local-llm-not-configured"
+        )
+    }
+    
+    func showAccessibilityPermissionRequired() {
+        showNotification(
+            title: "Accessibility Permission Required",
+            body: "Please enable Accessibility permission in System Settings > Privacy & Security > Accessibility.",
+            identifier: "accessibility-required"
+        )
+    }
+    
+    func showInputMonitoringRequired() {
+        showNotification(
+            title: "Input Monitoring Permission Required",
+            body: "For keyboard shortcuts to work in all apps, enable Input Monitoring in System Settings > Privacy & Security > Input Monitoring.",
+            identifier: "input-monitoring-required"
+        )
+    }
+    
     // MARK: - Private
     
     private func showNotification(title: String, body: String, identifier: String) {

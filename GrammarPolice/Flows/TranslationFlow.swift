@@ -24,6 +24,20 @@ final class TranslationFlow {
     func execute() async {
         let startTime = Date()
         
+        // Check Accessibility permission first
+        if !axService.isAccessibilityEnabled {
+            notificationService.showAccessibilityPermissionRequired()
+            LoggingService.shared.log("Accessibility permission not granted", level: .warning)
+            // Still try to open the permission prompt
+            _ = axService.checkAndRequestAccessibility()
+            return
+        }
+        
+        // Check LLM configuration
+        if !isLLMConfigured() {
+            return
+        }
+        
         // Get app info
         let appInfo = axService.getFocusedAppInfo()
         let appName = appInfo?.appName ?? "Unknown"
@@ -37,18 +51,28 @@ final class TranslationFlow {
         
         // Step 1: Get selected text
         var selectedText: String?
+        var usedFallback = false
         
-        do {
-            selectedText = try axService.getSelectedText()
-        } catch AXError.secureTextField {
-            notificationService.showSecureFieldWarning()
-            return
-        } catch AXError.noSelectedText {
-            // Try fallback
+        // For apps known to have AX issues (Electron apps, etc.), skip AX and go straight to clipboard
+        if axService.isAppWithAXIssues() {
+            LoggingService.shared.log("App known to have AX issues, using clipboard fallback directly", level: .debug)
+            usedFallback = true
             selectedText = await clipboardService.captureSelectedTextViaCopy()
-        } catch {
-            // Try fallback
-            selectedText = await clipboardService.captureSelectedTextViaCopy()
+        } else {
+            do {
+                selectedText = try axService.getSelectedText()
+            } catch AXError.secureTextField {
+                notificationService.showSecureFieldWarning()
+                return
+            } catch AXError.noSelectedText {
+                // Try fallback
+                usedFallback = true
+                selectedText = await clipboardService.captureSelectedTextViaCopy()
+            } catch {
+                // Try fallback
+                usedFallback = true
+                selectedText = await clipboardService.captureSelectedTextViaCopy()
+            }
         }
         
         guard let text = selectedText, !text.isEmpty else {
@@ -134,6 +158,32 @@ final class TranslationFlow {
         
         let totalTime = Int(Date().timeIntervalSince(startTime) * 1000)
         LoggingService.shared.log("Translation completed in \(totalTime)ms", level: .info)
+    }
+    
+    private func isLLMConfigured() -> Bool {
+        let settings = SettingsManager.shared
+        
+        if settings.llmBackend == .openAI {
+            if !KeychainService.shared.hasOpenAIAPIKey {
+                notificationService.showAPIKeyNotSet()
+                LoggingService.shared.log("OpenAI API key not set", level: .warning)
+                return false
+            }
+        } else {
+            // Local LLM
+            if settings.localLLMMode == .cli && settings.localLLMCommand.isEmpty {
+                notificationService.showLocalLLMNotConfigured()
+                LoggingService.shared.log("Local LLM command not configured", level: .warning)
+                return false
+            }
+            if settings.localLLMMode == .http && settings.localLLMEndpoint.isEmpty {
+                notificationService.showLocalLLMNotConfigured()
+                LoggingService.shared.log("Local LLM endpoint not configured", level: .warning)
+                return false
+            }
+        }
+        
+        return true
     }
     
     private func saveHistory(

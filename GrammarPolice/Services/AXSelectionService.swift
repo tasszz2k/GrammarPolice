@@ -233,18 +233,51 @@ final class AXSelectionService {
         }
         
         // Some apps are known to not support AX replacement well
+        // This includes Electron-based apps and some native apps with custom text rendering
         let problematicBundles = [
             "com.google.Chrome",
             "com.microsoft.Word",
-            "com.apple.Safari"
+            "com.apple.Safari",
+            "com.tinyspeck.slackmacgap",  // Slack
+            "com.hnc.Discord",             // Discord
+            "com.microsoft.teams",         // Microsoft Teams
+            "com.microsoft.VSCode",        // VS Code
+            "com.electron",                // Generic Electron apps
+            "com.brave.Browser",           // Brave
+            "com.operasoftware.Opera",     // Opera
+            "org.mozilla.firefox",         // Firefox
+            "com.vivaldi.Vivaldi"          // Vivaldi
         ]
         
         if let bundleId = frontApp.bundleIdentifier,
            problematicBundles.contains(where: { bundleId.hasPrefix($0) }) {
+            LoggingService.shared.log("App \(bundleId) is known to have AX issues, will use clipboard fallback", level: .debug)
             return false
         }
         
         return true
+    }
+    
+    // Check if the current app is known to have AX text selection issues
+    func isAppWithAXIssues() -> Bool {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication,
+              let bundleId = frontApp.bundleIdentifier else {
+            return false
+        }
+        
+        // Electron and Chromium-based apps typically don't expose text selection via AX
+        let problematicBundles = [
+            "com.tinyspeck.slackmacgap",  // Slack
+            "com.hnc.Discord",             // Discord
+            "com.microsoft.teams",         // Microsoft Teams
+            "com.microsoft.VSCode",        // VS Code
+            "com.electron",                // Generic Electron apps
+            "com.google.Chrome",           // Chrome
+            "com.brave.Browser",           // Brave
+            "org.mozilla.firefox"          // Firefox
+        ]
+        
+        return problematicBundles.contains(where: { bundleId.hasPrefix($0) })
     }
 }
 
