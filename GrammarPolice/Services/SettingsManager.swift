@@ -289,8 +289,8 @@ final class SettingsManager: ObservableObject {
     }
     
     func getTranslationPrompt(for maskedText: String) -> (system: String, user: String) {
-        let systemPrompt = "You are a translation assistant."
-        let userPrompt = "Translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no quotes, no commentary.\n\n\(maskedText)"
+        let systemPrompt = "You are a translation assistant that can translate from any language."
+        let userPrompt = "Detect the source language and translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no quotes, no commentary.\n\n\(maskedText)"
         return (systemPrompt, userPrompt)
     }
     

@@ -14,6 +14,25 @@ struct GrammarSettingsView: View {
     @State private var testOutput = ""
     @State private var isTesting = false
     
+    private let suggestedLanguages = [
+        "Vietnamese",
+        "English",
+        "Chinese (Simplified)",
+        "Chinese (Traditional)",
+        "Japanese",
+        "Korean",
+        "Spanish",
+        "French",
+        "German",
+        "Italian",
+        "Portuguese",
+        "Russian",
+        "Arabic",
+        "Hindi",
+        "Thai",
+        "Indonesian"
+    ]
+    
     var body: some View {
         Form {
             Section {
@@ -86,12 +105,16 @@ struct GrammarSettingsView: View {
             }
             
             Section {
-                TextField("Target Language:", text: Binding(
+                Picker("Target Language:", selection: Binding(
                     get: { settings.targetLanguage },
                     set: { settings.targetLanguage = $0 }
-                ))
+                )) {
+                    ForEach(suggestedLanguages, id: \.self) { lang in
+                        Text(lang).tag(lang)
+                    }
+                }
                 
-                Text("Language for translation (e.g., Vietnamese, Spanish, French)")
+                Text("Translation works with any source language and translates to the selected target language.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
@@ -103,7 +126,7 @@ struct GrammarSettingsView: View {
                     Text("Test Input:")
                         .font(.caption)
                     
-                    TextField("Enter text to test...", text: $testInput)
+                    TextField("", text: $testInput, prompt: Text("Enter text to test...").foregroundColor(.secondary))
                     
                     HStack {
                         Button("Test Grammar Correction") {
