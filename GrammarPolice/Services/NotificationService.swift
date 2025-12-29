@@ -7,7 +7,9 @@
 
 import Foundation
 import UserNotifications
+import AppKit
 
+@MainActor
 final class NotificationService: NSObject {
     static let shared = NotificationService()
     
@@ -21,7 +23,7 @@ final class NotificationService: NSObject {
     // MARK: - Permission
     
     func requestPermission() {
-        notificationCenter.requestAuthorization(options: [.alert, .sound]) { granted, error in
+        notificationCenter.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
                 LoggingService.shared.log("Notification permission error: \(error)", level: .error)
             } else if granted {
@@ -120,6 +122,8 @@ final class NotificationService: NSObject {
         notificationCenter.add(request) { error in
             if let error = error {
                 LoggingService.shared.log("Failed to show notification: \(error)", level: .error)
+            } else {
+                LoggingService.shared.log("Notification posted: \(title)", level: .debug)
             }
         }
     }
@@ -135,20 +139,25 @@ final class NotificationService: NSObject {
 // MARK: - UNUserNotificationCenterDelegate
 
 extension NotificationService: UNUserNotificationCenterDelegate {
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
         // Show notification even when app is in foreground
-        return [.banner, .sound]
+        completionHandler([.banner, .sound, .list])
     }
     
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         // Handle notification tap if needed
-        LoggingService.shared.log("Notification tapped: \(response.notification.request.identifier)", level: .debug)
+        Task { @MainActor in
+            LoggingService.shared.log("Notification tapped: \(response.notification.request.identifier)", level: .debug)
+        }
+        completionHandler()
     }
 }
 

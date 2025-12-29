@@ -11,6 +11,8 @@ struct LLMSettingsView: View {
     @ObservedObject private var settings = SettingsManager.shared
     
     @State private var apiKey = ""
+    @State private var hasAPIKey = false
+    @State private var isLoadingKeyStatus = true
     @State private var isTestingConnection = false
     @State private var connectionTestResult: ConnectionTestResult?
     @State private var showingAPIKeyField = false
@@ -50,8 +52,7 @@ struct LLMSettingsView: View {
                                 .textFieldStyle(.roundedBorder)
                             
                             Button("Save") {
-                                KeychainService.shared.openAIAPIKey = apiKey
-                                showingAPIKeyField = false
+                                saveAPIKey()
                             }
                             
                             Button("Cancel") {
@@ -59,14 +60,20 @@ struct LLMSettingsView: View {
                                 apiKey = ""
                             }
                         } else {
-                            Text(KeychainService.shared.hasOpenAIAPIKey ? "API Key: ********" : "API Key: Not Set")
+                            if isLoadingKeyStatus {
+                                Text("API Key: Loading...")
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text(hasAPIKey ? "API Key: ********" : "API Key: Not Set")
+                            }
                             
                             Spacer()
                             
-                            Button(KeychainService.shared.hasOpenAIAPIKey ? "Change" : "Set") {
+                            Button(hasAPIKey ? "Change" : "Set") {
                                 showingAPIKeyField = true
                                 apiKey = ""
                             }
+                            .disabled(isLoadingKeyStatus)
                         }
                     }
                     
@@ -74,6 +81,7 @@ struct LLMSettingsView: View {
                         get: { settings.openAIModel },
                         set: { settings.openAIModel = $0 }
                     )) {
+                        Text("gpt-4.1-mini").tag("gpt-4.1-mini")
                         Text("gpt-4o-mini").tag("gpt-4o-mini")
                         Text("gpt-4o").tag("gpt-4o")
                         Text("gpt-4-turbo").tag("gpt-4-turbo")
@@ -104,7 +112,7 @@ struct LLMSettingsView: View {
                         Button("Test Connection") {
                             testOpenAIConnection()
                         }
-                        .disabled(isTestingConnection || !KeychainService.shared.hasOpenAIAPIKey)
+                        .disabled(isTestingConnection || !hasAPIKey || isLoadingKeyStatus)
                         
                         if isTestingConnection {
                             ProgressView()
@@ -213,6 +221,41 @@ struct LLMSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            loadAPIKeyStatus()
+        }
+    }
+    
+    private func loadAPIKeyStatus() {
+        isLoadingKeyStatus = true
+
+        Task {
+            // Perform background work to fetch key existence
+            let keyExists = KeychainService.shared.hasOpenAIAPIKey
+
+            // Update UI on the main actor
+            await MainActor.run {
+                hasAPIKey = keyExists
+                isLoadingKeyStatus = false
+            }
+        }
+    }
+    
+    private func saveAPIKey() {
+        // Snapshot the key on the main actor
+        let keyToSave = apiKey
+
+        Task {
+            // Perform the keychain write on the main actor
+            await MainActor.run {
+                KeychainService.shared.openAIAPIKey = keyToSave
+            }
+
+            // Update UI-related state on the main actor
+            hasAPIKey = !keyToSave.isEmpty
+            showingAPIKeyField = false
+            apiKey = ""
+        }
     }
     
     private func testOpenAIConnection() {
@@ -260,4 +303,3 @@ struct LLMSettingsView: View {
     LLMSettingsView()
         .frame(width: 500, height: 500)
 }
-

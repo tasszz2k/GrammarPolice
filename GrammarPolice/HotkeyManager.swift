@@ -2,7 +2,7 @@
 //  HotkeyManager.swift
 //  GrammarPolice
 //
-//  Global hotkey registration using Carbon APIs
+//  Global hotkey registration using NSEvent global monitoring
 //
 
 import Carbon
@@ -15,8 +15,8 @@ final class HotkeyManager {
     var onGrammarCorrect: (() -> Void)?
     var onTranslate: (() -> Void)?
     
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
     
     // Hotkey configurations
     private var grammarHotkey: HotkeyConfig
@@ -34,49 +34,43 @@ final class HotkeyManager {
     // MARK: - Registration
     
     func registerHotkeys() {
-        // Create event tap to intercept key events
-        let eventMask = (1 << CGEventType.keyDown.rawValue)
+        // Check if we have accessibility permission
+        let trusted = AXIsProcessTrusted()
         
-        // Store self reference for callback
-        let userInfo = Unmanaged.passUnretained(self).toOpaque()
-        
-        eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(eventMask),
-            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
-                guard let refcon = refcon else {
-                    return Unmanaged.passRetained(event)
-                }
-                
-                let hotkeyManager = Unmanaged<HotkeyManager>.fromOpaque(refcon).takeUnretainedValue()
-                return hotkeyManager.handleEvent(proxy: proxy, type: type, event: event)
-            },
-            userInfo: userInfo
-        )
-        
-        guard let eventTap = eventTap else {
-            LoggingService.shared.log("Failed to create event tap. Make sure Accessibility is enabled.", level: .error)
-            return
+        if !trusted {
+            LoggingService.shared.log("Accessibility permission not granted. Global hotkeys will not work.", level: .warning)
+            // Still try to register - it will work once permission is granted
         }
         
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: eventTap, enable: true)
+        // Global monitor for events when app is not focused
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyEvent(event)
+        }
         
-        LoggingService.shared.log("Hotkeys registered successfully", level: .info)
+        // Local monitor for events when app is focused
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if self?.handleKeyEvent(event) == true {
+                return nil // Consume the event
+            }
+            return event
+        }
+        
+        if globalMonitor != nil {
+            LoggingService.shared.log("Hotkeys registered successfully", level: .info)
+        } else {
+            LoggingService.shared.log("Failed to register global hotkey monitor. Make sure Accessibility is enabled.", level: .error)
+        }
     }
     
     func unregisterAllHotkeys() {
-        if let runLoopSource = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-            self.runLoopSource = nil
+        if let monitor = globalMonitor {
+            NSEvent.removeMonitor(monitor)
+            globalMonitor = nil
         }
         
-        if let eventTap = eventTap {
-            CGEvent.tapEnable(tap: eventTap, enable: false)
-            self.eventTap = nil
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
         }
         
         LoggingService.shared.log("Hotkeys unregistered", level: .info)
@@ -90,51 +84,45 @@ final class HotkeyManager {
     
     // MARK: - Event Handling
     
-    private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard type == .keyDown else {
-            return Unmanaged.passRetained(event)
-        }
-        
-        let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
-        let flags = event.flags
-        
-        // Convert CGEventFlags to our modifier format
-        let modifiers = convertFlags(flags)
+    @discardableResult
+    private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        let keyCode = UInt32(event.keyCode)
+        let modifiers = convertModifierFlags(event.modifierFlags)
         
         // Check for grammar hotkey (default: Cmd+Shift+G)
         if keyCode == grammarHotkey.keyCode && modifiers == grammarHotkey.modifiers {
-            LoggingService.shared.log("Grammar hotkey triggered", level: .debug)
+            LoggingService.shared.log("Grammar hotkey triggered via global monitor", level: .debug)
             DispatchQueue.main.async { [weak self] in
                 self?.onGrammarCorrect?()
             }
-            return nil  // Consume the event
+            return true
         }
         
         // Check for translate hotkey (default: Cmd+Shift+T)
         if keyCode == translateHotkey.keyCode && modifiers == translateHotkey.modifiers {
-            LoggingService.shared.log("Translate hotkey triggered", level: .debug)
+            LoggingService.shared.log("Translate hotkey triggered via global monitor", level: .debug)
             DispatchQueue.main.async { [weak self] in
                 self?.onTranslate?()
             }
-            return nil  // Consume the event
+            return true
         }
         
-        return Unmanaged.passRetained(event)
+        return false
     }
     
-    private func convertFlags(_ flags: CGEventFlags) -> UInt32 {
+    private func convertModifierFlags(_ flags: NSEvent.ModifierFlags) -> UInt32 {
         var modifiers: UInt32 = 0
         
-        if flags.contains(.maskCommand) {
+        if flags.contains(.command) {
             modifiers |= 256  // cmdKey
         }
-        if flags.contains(.maskShift) {
+        if flags.contains(.shift) {
             modifiers |= 512  // shiftKey
         }
-        if flags.contains(.maskAlternate) {
+        if flags.contains(.option) {
             modifiers |= 2048  // optionKey
         }
-        if flags.contains(.maskControl) {
+        if flags.contains(.control) {
             modifiers |= 4096  // controlKey
         }
         
@@ -193,4 +181,3 @@ final class HotkeyRecorder: ObservableObject {
         }
     }
 }
-
