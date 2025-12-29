@@ -9,6 +9,7 @@ import Carbon
 import AppKit
 import Combine
 
+@MainActor
 final class HotkeyManager {
     
     // Callbacks for hotkey actions
