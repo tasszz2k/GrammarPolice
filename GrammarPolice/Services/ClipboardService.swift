@@ -91,7 +91,6 @@ final class ClipboardService {
         }
         
         // Clear clipboard first and record change count
-        let initialChangeCount = pasteboard.changeCount
         pasteboard.clearContents()
         let clearedChangeCount = pasteboard.changeCount
         

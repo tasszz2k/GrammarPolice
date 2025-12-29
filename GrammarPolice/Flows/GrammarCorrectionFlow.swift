@@ -153,11 +153,19 @@ final class GrammarCorrectionFlow {
             }
         }
         
-        // If AX replacement failed or wasn't attempted, copy to clipboard
+        // If AX replacement failed or wasn't attempted, use clipboard + paste
         if !replacementDone {
             clipboardService.setText(correctedText)
-            notificationService.showGrammarCopiedToClipboard(preview: correctedText)
-            LoggingService.shared.logReplacement(success: false, method: "Clipboard")
+            
+            // Small delay to ensure clipboard is ready
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            
+            // Simulate paste to insert the text
+            clipboardService.simulatePaste()
+            replacementDone = true
+            
+            notificationService.showGrammarCorrectionSuccess(preview: correctedText)
+            LoggingService.shared.logReplacement(success: true, method: "Clipboard+Paste")
         }
         
         // Step 7: Save to history

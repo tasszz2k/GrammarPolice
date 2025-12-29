@@ -56,8 +56,8 @@ final class TranslationFlow {
         // For apps known to have AX issues (Electron apps, etc.), skip AX and go straight to clipboard
         if axService.isAppWithAXIssues() {
             LoggingService.shared.log("App known to have AX issues, using clipboard fallback directly", level: .debug)
-            usedFallback = true
             selectedText = await clipboardService.captureSelectedTextViaCopy()
+            usedFallback = true
         } else {
             do {
                 selectedText = try axService.getSelectedText()
@@ -66,12 +66,12 @@ final class TranslationFlow {
                 return
             } catch AXError.noSelectedText {
                 // Try fallback
-                usedFallback = true
                 selectedText = await clipboardService.captureSelectedTextViaCopy()
+                usedFallback = true
             } catch {
                 // Try fallback
-                usedFallback = true
                 selectedText = await clipboardService.captureSelectedTextViaCopy()
+                usedFallback = true
             }
         }
         
@@ -139,10 +139,35 @@ final class TranslationFlow {
         // Step 5: Unmask tokens
         let translatedText = maskingService.unmaskTokens(in: translatedMasked, using: maskResult.mapping)
         
-        // Step 6: Copy to clipboard (always for translation)
-        clipboardService.setText(translatedText)
-        notificationService.showTranslationComplete(preview: translatedText, targetLanguage: targetLanguage)
-        LoggingService.shared.log("Translation copied to clipboard", level: .debug)
+        // Step 6: Replace text or paste
+        var replacementDone = false
+        
+        // Try AX replacement first if the app supports it
+        if !usedFallback && axService.canReplaceText() {
+            do {
+                try axService.replaceSelectedText(with: translatedText)
+                replacementDone = true
+                notificationService.showTranslationComplete(preview: translatedText, targetLanguage: targetLanguage)
+                LoggingService.shared.logReplacement(success: true, method: "AX")
+            } catch {
+                LoggingService.shared.log("AX replacement failed for translation: \(error)", level: .debug)
+            }
+        }
+        
+        // If AX replacement failed or wasn't attempted, use clipboard + paste
+        if !replacementDone {
+            clipboardService.setText(translatedText)
+            
+            // Small delay to ensure clipboard is ready
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            
+            // Simulate paste to insert the text
+            clipboardService.simulatePaste()
+            replacementDone = true
+            
+            notificationService.showTranslationComplete(preview: translatedText, targetLanguage: targetLanguage)
+            LoggingService.shared.logReplacement(success: true, method: "Clipboard+Paste")
+        }
         
         // Step 7: Save to history
         saveHistory(
