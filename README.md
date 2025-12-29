@@ -1,6 +1,13 @@
 # GrammarPolice
 
+[![GitHub license](https://img.shields.io/github/license/tasszz2k/GrammarPolice)](https://github.com/tasszz2k/GrammarPolice/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/tasszz2k/GrammarPolice)](https://github.com/tasszz2k/GrammarPolice/stargazers)
+[![macOS](https://img.shields.io/badge/macOS-14.0%2B-blue)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-5.9-orange)](https://swift.org/)
+
 A powerful macOS menubar app for instant grammar correction and translation using AI. Works with any application through global hotkeys.
+
+**Repository:** [https://github.com/tasszz2k/GrammarPolice](https://github.com/tasszz2k/GrammarPolice)
 
 <!-- Add app icon here -->
 ![App Icon](docs/images/app-icon.png)
@@ -49,7 +56,7 @@ Configure hotkeys, LLM backend, grammar modes, and more.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/GrammarPolice.git
+git clone https://github.com/tasszz2k/GrammarPolice.git
 cd GrammarPolice
 ```
 
@@ -212,7 +219,7 @@ GrammarPolice works with virtually any application:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/tasszz2k/GrammarPolice/blob/main/LICENSE) for details.
 
 ## Contributing
 
