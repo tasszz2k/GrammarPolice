@@ -33,6 +33,9 @@ Select text in any app and press `Ctrl+Cmd+G` to instantly correct grammar.
 <!-- Add grammar correction screenshot -->
 ![Grammar Correction](docs/images/grammar-correction.png)
 
+It works with any language, including Vietnamese.
+![Grammar Correction](docs/images/grammar-correction-2.png)
+
 ### Translation
 Select text and press `Ctrl+Cmd+T` to translate to your preferred language.
 
