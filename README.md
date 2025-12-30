@@ -236,6 +236,9 @@ GrammarPolice works with virtually any application:
 ## Troubleshooting
 
 ### "App is damaged and can't be opened"
+
+![App Damaged Warning](docs/images/warning-cant-be-install.png)
+
 This happens because the app is not code-signed. Run this command to fix:
 ```bash
 xattr -cr /Applications/GrammarPolice.app
