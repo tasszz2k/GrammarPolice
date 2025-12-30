@@ -52,7 +52,14 @@ Configure hotkeys, LLM backend, grammar modes, and more.
 - Accessibility permission (required for text capture)
 - OpenAI API key or local LLM setup
 
-### Download
+### Install via Homebrew (Recommended)
+
+```bash
+brew tap tasszz2k/tap
+brew install --cask grammar-police
+```
+
+### Manual Download
 
 Download the latest release from [GitHub Releases](https://github.com/tasszz2k/GrammarPolice/releases):
 
