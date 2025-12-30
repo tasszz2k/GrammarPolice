@@ -166,7 +166,7 @@ final class MenubarController {
         let alert = NSAlert()
         alert.messageText = "GrammarPolice"
         alert.informativeText = """
-            Version 0.0.1
+            Version 0.0.2
             
             AI-powered macOS menubar app for grammar correction and translation.
             

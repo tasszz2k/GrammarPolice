@@ -21,6 +21,17 @@ jobs:
       with:
         xcode-version: latest-stable
     
+    - name: Get version from tag
+      id: version
+      run: |
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION="0.0.0-dev"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+    
     - name: Build Release
       run: |
         xcodebuild -project GrammarPolice.xcodeproj \
@@ -43,6 +54,13 @@ jobs:
         cd build/export
         zip -r ../../GrammarPolice.zip GrammarPolice.app
     
+    - name: Calculate SHA256
+      id: sha256
+      run: |
+        SHA256=$(shasum -a 256 GrammarPolice.zip | awk '{print $1}')
+        echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+        echo "SHA256: $SHA256"
+    
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -58,4 +76,73 @@ jobs:
         body_path: CHANGELOG.md
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update Homebrew Tap
+      if: startsWith(github.ref, 'refs/tags/') && success()
+      env:
+        HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      run: |
+        if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+          echo "HOMEBREW_TAP_TOKEN not set, skipping Homebrew update"
+          exit 0
+        fi
+        
+        VERSION="${{ steps.version.outputs.version }}"
+        SHA256="${{ steps.sha256.outputs.sha256 }}"
+        
+        echo "Updating Homebrew tap with version $VERSION and SHA256 $SHA256"
+        
+        # Clone the homebrew-tap repo
+        git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/tasszz2k/homebrew-tap.git /tmp/homebrew-tap
+        cd /tmp/homebrew-tap
+        
+        # Update the cask formula
+        cat > Casks/grammar-police.rb << EOF
+        cask "grammar-police" do
+          version "$VERSION"
+          sha256 "$SHA256"
 
+          url "https://github.com/tasszz2k/GrammarPolice/releases/download/v#{version}/GrammarPolice.zip"
+          name "GrammarPolice"
+          desc "AI-powered menubar app for grammar correction and translation on macOS"
+          homepage "https://github.com/tasszz2k/GrammarPolice"
+
+          depends_on macos: ">= :sonoma"
+
+          app "GrammarPolice.app"
+
+          # Remove quarantine flag for unsigned app
+          postflight do
+            system_command "/usr/bin/xattr",
+                           args: ["-cr", "#{appdir}/GrammarPolice.app"],
+                           sudo: false
+          end
+
+          zap trash: [
+            "~/Library/Application Support/GrammarPolice",
+            "~/Library/Caches/com.tasszz2k.GrammarPolice",
+            "~/Library/Preferences/com.tasszz2k.GrammarPolice.plist",
+            "~/Library/Logs/GrammarPolice",
+          ]
+
+          caveats <<~EOS
+            GrammarPolice requires the following permissions:
+            - Accessibility: System Settings > Privacy & Security > Accessibility
+            - Input Monitoring: System Settings > Privacy & Security > Input Monitoring
+
+            Configure your OpenAI API key or local LLM in Preferences after installation.
+
+            Note: This app is not code-signed. If you see "app is damaged" error, run:
+              xattr -cr /Applications/GrammarPolice.app
+          EOS
+        end
+        EOF
+        
+        # Commit and push
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add Casks/grammar-police.rb
+        git commit -m "Update GrammarPolice to v$VERSION"
+        git push
+        
+        echo "Homebrew tap updated successfully!"

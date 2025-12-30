@@ -5,6 +5,24 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.2] - 2025-12-30
+
+### Added
+
+- **Homebrew Installation**: Install via `brew tap tasszz2k/tap && brew install --cask grammar-police`
+- **Automated Homebrew Publishing**: GitHub Actions now auto-updates Homebrew tap on release
+- **About Dialog Improvements**: 
+  - Fixed hotkey display (now shows correct Ctrl+Cmd+G/T)
+  - Added author (Tass) and GitHub repository link
+  - Added "Open GitHub" button
+
+### Fixed
+
+- Fixed incorrect hotkeys shown in About dialog (was Cmd+Shift, now Ctrl+Cmd)
+- Fixed version number display in About dialog
+
+---
+
 ## [0.0.1] - 2025-12-30
 
 ### Added
@@ -53,5 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.0.2]: https://github.com/tasszz2k/GrammarPolice/releases/tag/v0.0.2
 [0.0.1]: https://github.com/tasszz2k/GrammarPolice/releases/tag/v0.0.1
 
