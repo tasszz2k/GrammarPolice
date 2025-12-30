@@ -179,6 +179,36 @@ Then configure in Preferences:
 <!-- Add history screenshot -->
 ![History](docs/images/history.png)
 
+### Export For Learning
+![Learning](docs/images/export-for-learning.png)
+
+You can use this data to improve language skills.
+
+```json
+[
+   {
+    "input" : "supposed",
+    "correction" : "giả định",
+    "explanation" : "Mode: translate"
+  },
+  {
+    "correction" : "I already checked the log yesterday, but it doesn't show anything wrong, so maybe the issue does not come from the backend.",
+    "explanation" : "Mode: grammar",
+    "input" : "i already check the log yesterday but it doesnt show anything wrong so maybe the issue is not come from backend"
+  },
+  {
+    "input" : "this thing not working as it suppose to be and i really dont know why it keep failing again and again",
+    "correction" : "This thing is not working as it is supposed to, and I really don't know why it keeps failing again and again.",
+    "explanation" : "Mode: grammar"
+  },
+  {
+    "input" : "hey guys sorry for late reply i was busy handle other task and didnt have time to look into this issue",
+    "correction" : "Hey guys, sorry for the late reply. I was busy handling other tasks and didn't have time to look into this issue.",
+    "explanation" : "Mode: grammar"
+  },
+]
+```
+
 ### Debug Logs
 <!-- Add debug logs screenshot -->
 ![Debug Logs](docs/images/debug-logs.png)
