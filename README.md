@@ -59,6 +59,8 @@ brew tap tasszz2k/tap
 brew install --cask grammar-police
 ```
 
+> **Note:** If you see "app is damaged" error, run: `xattr -cr /Applications/GrammarPolice.app`
+
 ### Manual Download
 
 Download the latest release from [GitHub Releases](https://github.com/tasszz2k/GrammarPolice/releases):
@@ -232,6 +234,12 @@ GrammarPolice works with virtually any application:
 | Terminal apps | Clipboard fallback | Paste simulation |
 
 ## Troubleshooting
+
+### "App is damaged and can't be opened"
+This happens because the app is not code-signed. Run this command to fix:
+```bash
+xattr -cr /Applications/GrammarPolice.app
+```
 
 ### Hotkeys not working
 1. Check Accessibility permission is granted
