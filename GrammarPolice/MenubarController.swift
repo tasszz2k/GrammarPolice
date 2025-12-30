@@ -166,19 +166,29 @@ final class MenubarController {
         let alert = NSAlert()
         alert.messageText = "GrammarPolice"
         alert.informativeText = """
-            Version 1.0
+            Version 0.0.1
             
-            A macOS menubar app for grammar correction and translation.
+            AI-powered macOS menubar app for grammar correction and translation.
             
             Hotkeys:
-            - Cmd+Shift+G: Correct Grammar
-            - Cmd+Shift+T: Translate
+            - Ctrl+Cmd+G: Correct Grammar
+            - Ctrl+Cmd+T: Translate
             
             Select text in any app and press the hotkey to correct or translate.
+            
+            Author: Tass
+            GitHub: github.com/tasszz2k/GrammarPolice
             """
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
-        alert.runModal()
+        alert.addButton(withTitle: "Open GitHub")
+        
+        let response = alert.runModal()
+        if response == .alertSecondButtonReturn {
+            if let url = URL(string: "https://github.com/tasszz2k/GrammarPolice") {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 }
 
