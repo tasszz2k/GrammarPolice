@@ -2,7 +2,7 @@
 //  NotificationService.swift
 //  GrammarPolice
 //
-//  macOS notification service
+//  macOS notification service with fallback support
 //
 
 import Foundation
@@ -14,6 +14,8 @@ final class NotificationService: NSObject {
     static let shared = NotificationService()
     
     private let notificationCenter = UNUserNotificationCenter.current()
+    private var useNativeNotifications = true
+    private var permissionChecked = false
     
     private override init() {
         super.init()
@@ -24,12 +26,21 @@ final class NotificationService: NSObject {
     
     func requestPermission() {
         notificationCenter.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                LoggingService.shared.log("Notification permission error: \(error)", level: .error)
-            } else if granted {
-                LoggingService.shared.log("Notification permission granted", level: .info)
-            } else {
-                LoggingService.shared.log("Notification permission denied", level: .warning)
+            // Avoid capturing `self` in a concurrently-executing closure by hopping to the main actor
+            let grantedCopy = granted
+            let errorCopy = error
+            Task { @MainActor in
+                if let errorCopy = errorCopy {
+                    LoggingService.shared.log("Notification permission error: \(errorCopy). Using fallback notifications.", level: .warning)
+                    self.useNativeNotifications = false
+                } else if grantedCopy {
+                    LoggingService.shared.log("Notification permission granted", level: .info)
+                    self.useNativeNotifications = true
+                } else {
+                    LoggingService.shared.log("Notification permission denied. Using fallback notifications.", level: .warning)
+                    self.useNativeNotifications = false
+                }
+                self.permissionChecked = true
             }
         }
     }
@@ -170,6 +181,12 @@ final class NotificationService: NSObject {
     // MARK: - Private
     
     private func showNotification(title: String, body: String, identifier: String) {
+        // If permission hasn't been checked yet or native notifications are unavailable, use fallback
+        if !permissionChecked || !useNativeNotifications {
+            showFallbackNotification(title: title, body: body)
+            return
+        }
+        
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -183,11 +200,20 @@ final class NotificationService: NSObject {
         
         notificationCenter.add(request) { error in
             if let error = error {
-                LoggingService.shared.log("Failed to show notification: \(error)", level: .error)
+                LoggingService.shared.log("Failed to show notification: \(error). Falling back.", level: .warning)
+                // Fall back to floating notification on error
+                Task { @MainActor in
+                    self.useNativeNotifications = false
+                    self.showFallbackNotification(title: title, body: body)
+                }
             } else {
                 LoggingService.shared.log("Notification posted: \(title)", level: .debug)
             }
         }
+    }
+    
+    private func showFallbackNotification(title: String, body: String) {
+        FloatingNotificationManager.shared.showNotification(title: title, body: body)
     }
     
     private func truncateText(_ text: String, maxLength: Int) -> String {
