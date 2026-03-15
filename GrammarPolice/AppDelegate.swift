@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menubarController: MenubarController?
     private var hotkeyManager: HotkeyManager?
     private var modelContainer: ModelContainer?
+    private var autoExportService: AutoExportService?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupModelContainer()
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkAccessibilityPermission()
         requestNotificationPermission()
         checkPrivacyConsent()
+        setupAutoExport()
     }
     
     func applicationWillTerminate(_ notification: Notification) {
@@ -129,6 +131,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func requestNotificationPermission() {
         NotificationService.shared.requestPermission()
+    }
+    
+    private func setupAutoExport() {
+        guard let container = modelContainer else { return }
+        autoExportService = AutoExportService(modelContainer: container)
+        autoExportService?.start()
     }
     
     private func checkPrivacyConsent() {

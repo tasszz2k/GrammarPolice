@@ -51,6 +51,7 @@ final class TranslationFlow {
         
         // Step 1: Get selected text
         var selectedText: String?
+        var surroundingContext: String?
         var usedClipboardFallback = false
         
         // For apps known to have AX issues (Electron apps, etc.), skip AX and go straight to clipboard
@@ -58,16 +59,19 @@ final class TranslationFlow {
             LoggingService.shared.log("App known to have AX issues, using clipboard fallback directly", level: .debug)
             usedClipboardFallback = true
             selectedText = await clipboardService.captureSelectedTextViaCopy()
+            surroundingContext = nil
         } else {
             do {
-                selectedText = try axService.getSelectedText()
+                let selectionContext = try axService.getSelectedTextWithContext()
+                selectedText = selectionContext.selectedText
+                surroundingContext = selectionContext.surroundingContext
             } catch AXError.secureTextField {
                 notificationService.showSecureFieldWarning()
                 return
             } catch {
-                // Try clipboard fallback
                 usedClipboardFallback = true
                 selectedText = await clipboardService.captureSelectedTextViaCopy()
+                surroundingContext = nil
             }
         }
         
@@ -107,9 +111,9 @@ final class TranslationFlow {
             let result: (result: String, latencyMs: Int)
             
             if SettingsManager.shared.llmBackend == .openAI {
-                result = try await LLMClient.shared.translate(maskResult.maskedText)
+                result = try await LLMClient.shared.translate(maskResult.maskedText, context: surroundingContext)
             } else {
-                result = try await LocalLLMRunner.shared.translate(maskResult.maskedText)
+                result = try await LocalLLMRunner.shared.translate(maskResult.maskedText, context: surroundingContext)
             }
             
             translatedMasked = result.result

@@ -100,19 +100,19 @@ final class LLMClient {
     
     // MARK: - Grammar Correction
     
-    func correctGrammar(_ text: String) async throws -> (result: String, latencyMs: Int) {
+    func correctGrammar(_ text: String, context: String? = nil) async throws -> (result: String, latencyMs: Int) {
         try checkPrerequisites(textLength: text.count)
         
-        let prompts = SettingsManager.shared.getGrammarPrompt(for: text)
+        let prompts = SettingsManager.shared.getGrammarPrompt(for: text, context: context)
         return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user)
     }
     
     // MARK: - Translation
     
-    func translate(_ text: String) async throws -> (result: String, latencyMs: Int) {
+    func translate(_ text: String, context: String? = nil) async throws -> (result: String, latencyMs: Int) {
         try checkPrerequisites(textLength: text.count)
         
-        let prompts = SettingsManager.shared.getTranslationPrompt(for: text)
+        let prompts = SettingsManager.shared.getTranslationPrompt(for: text, context: context)
         return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user)
     }
     

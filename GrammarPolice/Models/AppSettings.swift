@@ -153,5 +153,11 @@ struct AppSettings: Codable {
     
     // History
     var historyRetentionDays: Int = 30
+
+    // Auto Export
+    var autoExportEnabled: Bool = false
+    var autoExportFolderPath: String = ""
+    var autoExportPrefix: String = "learning_data"
+    var lastAutoExportDate: Date? = nil
 }
 

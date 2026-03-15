@@ -263,9 +263,29 @@ final class SettingsManager: ObservableObject {
         }
     }
     
+    var autoExportEnabled: Bool {
+        get { settings.autoExportEnabled }
+        set { settings.autoExportEnabled = newValue; saveSettings() }
+    }
+    
+    var autoExportFolderPath: String {
+        get { settings.autoExportFolderPath }
+        set { settings.autoExportFolderPath = newValue; saveSettings() }
+    }
+    
+    var autoExportPrefix: String {
+        get { settings.autoExportPrefix }
+        set { settings.autoExportPrefix = newValue; saveSettings() }
+    }
+    
+    var lastAutoExportDate: Date? {
+        get { settings.lastAutoExportDate }
+        set { settings.lastAutoExportDate = newValue; saveSettings() }
+    }
+    
     // MARK: - Prompt Generation
     
-    func getGrammarPrompt(for maskedText: String) -> (system: String, user: String) {
+    func getGrammarPrompt(for maskedText: String, context: String? = nil) -> (system: String, user: String) {
         let systemPrompt: String
         let userPromptTemplate: String
         
@@ -284,13 +304,24 @@ final class SettingsManager: ObservableObject {
             userPromptTemplate = customUserPrompt
         }
         
-        let userPrompt = "\(userPromptTemplate)\n\n\(maskedText)"
+        let userPrompt: String
+        if let ctx = context, !ctx.isEmpty, ctx != maskedText {
+            userPrompt = "\(userPromptTemplate)\n\nText to correct:\n\(maskedText)\n\nSurrounding context (for reference only, do not include in output):\n\(ctx)"
+        } else {
+            userPrompt = "\(userPromptTemplate)\n\n\(maskedText)"
+        }
         return (systemPrompt, userPrompt)
     }
     
-    func getTranslationPrompt(for maskedText: String) -> (system: String, user: String) {
+    func getTranslationPrompt(for maskedText: String, context: String? = nil) -> (system: String, user: String) {
         let systemPrompt = "You are a translation assistant that can translate from any language."
-        let userPrompt = "Detect the source language and translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no quotes, no commentary.\n\n\(maskedText)"
+        let userPromptTemplate = "Detect the source language and translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no quotes, no commentary."
+        let userPrompt: String
+        if let ctx = context, !ctx.isEmpty, ctx != maskedText {
+            userPrompt = "\(userPromptTemplate)\n\nText to translate:\n\(maskedText)\n\nSurrounding context (for reference only, do not include in output):\n\(ctx)"
+        } else {
+            userPrompt = "\(userPromptTemplate)\n\n\(maskedText)"
+        }
         return (systemPrompt, userPrompt)
     }
     

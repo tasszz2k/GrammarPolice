@@ -40,6 +40,11 @@ struct FocusedAppInfo {
     let processIdentifier: pid_t
 }
 
+struct SelectionContext {
+    let selectedText: String
+    let surroundingContext: String?
+}
+
 final class AXSelectionService {
     static let shared = AXSelectionService()
     
@@ -125,6 +130,114 @@ final class AXSelectionService {
         
         LoggingService.shared.log("Got selected text via AX, length: \(text.count)", level: .debug)
         return text
+    }
+    
+    func getSelectedTextWithContext() throws -> SelectionContext {
+        guard isAccessibilityEnabled else {
+            throw AXError.accessibilityNotEnabled
+        }
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
+            throw AXError.noFocusedElement
+        }
+        let pid = frontApp.processIdentifier
+        let appElement = AXUIElementCreateApplication(pid)
+        var focusedElement: CFTypeRef?
+        let focusResult = AXUIElementCopyAttributeValue(
+            appElement,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedElement
+        )
+        guard focusResult == .success, let element = focusedElement else {
+            LoggingService.shared.log("Failed to get focused element: \(focusResult.rawValue)", level: .debug)
+            throw AXError.noFocusedElement
+        }
+        let axElement = element as! AXUIElement
+        if isSecureTextField(axElement) {
+            LoggingService.shared.log("Detected secure text field, skipping", level: .warning)
+            throw AXError.secureTextField
+        }
+        var selectedTextRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(
+            axElement,
+            kAXSelectedTextAttribute as CFString,
+            &selectedTextRef
+        )
+        guard textResult == .success, let text = selectedTextRef as? String else {
+            LoggingService.shared.log("Failed to get selected text: \(textResult.rawValue)", level: .debug)
+            throw AXError.noSelectedText
+        }
+        if text.isEmpty {
+            throw AXError.noSelectedText
+        }
+        var fullTextRef: CFTypeRef?
+        let valueResult = AXUIElementCopyAttributeValue(
+            axElement,
+            kAXValueAttribute as CFString,
+            &fullTextRef
+        )
+        guard valueResult == .success, let fullText = fullTextRef as? String else {
+            LoggingService.shared.log("Got selected text via AX, length: \(text.count) (no context)", level: .debug)
+            return SelectionContext(selectedText: text, surroundingContext: nil)
+        }
+        var rangeRef: CFTypeRef?
+        let rangeResult = AXUIElementCopyAttributeValue(
+            axElement,
+            kAXSelectedTextRangeAttribute as CFString,
+            &rangeRef
+        )
+        guard rangeResult == .success, let rangeValue = rangeRef else {
+            LoggingService.shared.log("Got selected text via AX, length: \(text.count) (no range)", level: .debug)
+            return SelectionContext(selectedText: text, surroundingContext: nil)
+        }
+        // rangeValue is an AXValue wrapping a CFRange
+        let axValue = rangeValue as! AXValue
+        var cfRange = CFRange(location: 0, length: 0)
+        guard AXValueGetValue(axValue, .cfRange, &cfRange) else {
+            LoggingService.shared.log("Got selected text via AX, length: \(text.count) (range decode failed)", level: .debug)
+            return SelectionContext(selectedText: text, surroundingContext: nil)
+        }
+        let surroundingContext = extractSurroundingSentence(
+            fullText: fullText,
+            selectionLocation: cfRange.location,
+            selectionLength: cfRange.length
+        )
+        LoggingService.shared.log("Got selected text via AX, length: \(text.count), context length: \(surroundingContext?.count ?? 0)", level: .debug)
+        return SelectionContext(selectedText: text, surroundingContext: surroundingContext)
+    }
+    
+    private func extractSurroundingSentence(fullText: String, selectionLocation: Int, selectionLength: Int) -> String? {
+        let utf16 = fullText.utf16
+        let utf16Count = utf16.count
+        let selectionEnd = selectionLocation + selectionLength
+        guard selectionLocation >= 0, selectionEnd <= utf16Count else { return nil }
+        let terminators: Set<UInt16> = [0x002E, 0x0021, 0x003F, 0x000A]
+        var sentenceStart = 0
+        if selectionLocation > 0 {
+            for i in stride(from: selectionLocation - 1, through: 0, by: -1) {
+                let idx = utf16.index(utf16.startIndex, offsetBy: i)
+                if terminators.contains(utf16[idx]) {
+                    sentenceStart = i + 1
+                    break
+                }
+            }
+        }
+        var sentenceEnd = utf16Count
+        for i in selectionEnd..<utf16Count {
+            let idx = utf16.index(utf16.startIndex, offsetBy: i)
+            if terminators.contains(utf16[idx]) {
+                sentenceEnd = i + 1
+                break
+            }
+        }
+        guard let strStart = utf16.index(utf16.startIndex, offsetBy: sentenceStart, limitedBy: utf16.endIndex)?.samePosition(in: fullText),
+              let strEnd = utf16.index(utf16.startIndex, offsetBy: sentenceEnd, limitedBy: utf16.endIndex)?.samePosition(in: fullText) else {
+            return nil
+        }
+        var result = String(fullText[strStart..<strEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.count > 500 {
+            result = String(result.prefix(500))
+        }
+        return result.isEmpty ? nil : result
     }
     
     // MARK: - Replace Selected Text

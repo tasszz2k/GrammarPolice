@@ -163,6 +163,32 @@ final class HistoryStore {
         }
     }
     
+    func fetchEntries(forYear year: Int, month: Int) -> [HistoryEntry] {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current
+        
+        guard let startDate = calendar.date(from: DateComponents(year: year, month: month, day: 1)),
+              let endDate = calendar.date(byAdding: .month, value: 1, to: startDate) else {
+            return []
+        }
+        
+        let predicate = #Predicate<HistoryEntry> { entry in
+            entry.timestamp >= startDate && entry.timestamp < endDate
+        }
+        
+        let descriptor = FetchDescriptor<HistoryEntry>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+        )
+        
+        do {
+            return try modelContext.fetch(descriptor)
+        } catch {
+            LoggingService.shared.log("Failed to fetch entries for \(year)-\(month): \(error)", level: .error)
+            return []
+        }
+    }
+    
     // MARK: - Export
     
     func exportToCSV(entries: [HistoryEntry]? = nil) -> String {

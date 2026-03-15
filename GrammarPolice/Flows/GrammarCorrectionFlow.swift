@@ -51,6 +51,7 @@ final class GrammarCorrectionFlow {
         
         // Step 1: Get selected text
         var selectedText: String?
+        var surroundingContext: String?
         var usedFallback = false
         
         // For apps known to have AX issues (Electron apps, etc.), skip AX and go straight to clipboard
@@ -58,20 +59,23 @@ final class GrammarCorrectionFlow {
             LoggingService.shared.log("App known to have AX issues, using clipboard fallback directly", level: .debug)
             usedFallback = true
             selectedText = await clipboardService.captureSelectedTextViaCopy()
+            surroundingContext = nil
         } else {
             do {
-                selectedText = try axService.getSelectedText()
+                let ctx = try axService.getSelectedTextWithContext()
+                selectedText = ctx.selectedText
+                surroundingContext = ctx.surroundingContext
             } catch AXError.secureTextField {
                 notificationService.showSecureFieldWarning()
                 return
             } catch AXError.noSelectedText {
-                // Try fallback
                 usedFallback = true
                 selectedText = await clipboardService.captureSelectedTextViaCopy()
+                surroundingContext = nil
             } catch {
-                // Try fallback
                 usedFallback = true
                 selectedText = await clipboardService.captureSelectedTextViaCopy()
+                surroundingContext = nil
             }
         }
         
@@ -105,9 +109,9 @@ final class GrammarCorrectionFlow {
             let result: (result: String, latencyMs: Int)
             
             if SettingsManager.shared.llmBackend == .openAI {
-                result = try await LLMClient.shared.correctGrammar(maskResult.maskedText)
+                result = try await LLMClient.shared.correctGrammar(maskResult.maskedText, context: surroundingContext)
             } else {
-                result = try await LocalLLMRunner.shared.correctGrammar(maskResult.maskedText)
+                result = try await LocalLLMRunner.shared.correctGrammar(maskResult.maskedText, context: surroundingContext)
             }
             
             correctedMasked = result.result

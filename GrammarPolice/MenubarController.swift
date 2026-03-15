@@ -163,10 +163,14 @@ final class MenubarController {
     // MARK: - About Window
     
     private func showAboutWindow() {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        let versionString = build.isEmpty ? "Version \(version)" : "Version \(version) (\(build))"
+
         let alert = NSAlert()
         alert.messageText = "GrammarPolice"
         alert.informativeText = """
-            Version 0.0.2
+            \(versionString)
             
             AI-powered macOS menubar app for grammar correction and translation.
             

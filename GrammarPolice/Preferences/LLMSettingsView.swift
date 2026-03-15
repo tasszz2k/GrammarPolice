@@ -8,14 +8,21 @@
 import SwiftUI
 
 struct LLMSettingsView: View {
+    private let presetModels = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+    
     @ObservedObject private var settings = SettingsManager.shared
     
     @State private var apiKey = ""
+    @State private var customModelName = ""
     @State private var hasAPIKey = false
     @State private var isLoadingKeyStatus = true
     @State private var isTestingConnection = false
     @State private var connectionTestResult: ConnectionTestResult?
     @State private var showingAPIKeyField = false
+
+    private var isCustomModel: Bool {
+        !presetModels.contains(settings.openAIModel)
+    }
     
     enum ConnectionTestResult {
         case success
@@ -78,14 +85,30 @@ struct LLMSettingsView: View {
                     }
                     
                     Picker("Model:", selection: Binding(
-                        get: { settings.openAIModel },
-                        set: { settings.openAIModel = $0 }
+                        get: { presetModels.contains(settings.openAIModel) ? settings.openAIModel : "custom" },
+                        set: { newValue in
+                            if newValue == "custom" {
+                                settings.openAIModel = customModelName.isEmpty ? "" : customModelName
+                            } else {
+                                settings.openAIModel = newValue
+                            }
+                        }
                     )) {
-                        Text("gpt-4.1-mini").tag("gpt-4.1-mini")
-                        Text("gpt-4o-mini").tag("gpt-4o-mini")
-                        Text("gpt-4o").tag("gpt-4o")
-                        Text("gpt-4-turbo").tag("gpt-4-turbo")
-                        Text("gpt-3.5-turbo").tag("gpt-3.5-turbo")
+                        ForEach(presetModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                        Text("Custom").tag("custom")
+                    }
+                    
+                    if isCustomModel {
+                        TextField("Model name", text: Binding(
+                            get: { settings.openAIModel },
+                            set: { newValue in
+                                settings.openAIModel = newValue
+                                customModelName = newValue
+                            }
+                        ))
+                        .textFieldStyle(.roundedBorder)
                     }
                     
                     HStack {
@@ -223,6 +246,9 @@ struct LLMSettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             loadAPIKeyStatus()
+            if isCustomModel {
+                customModelName = settings.openAIModel
+            }
         }
     }
     

@@ -38,6 +38,11 @@ struct PreferencesView: View {
                     Label("History", systemImage: "clock")
                 }
             
+            ExportSettingsView()
+                .tabItem {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+            
             DebugSettingsView()
                 .tabItem {
                     Label("Debug", systemImage: "ladybug")
