@@ -1,0 +1,82 @@
+name: Publish to Homebrew
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew Tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set, skipping Homebrew update"
+            exit 0
+          fi
+
+          VERSION="${VERSION#v}"
+
+          curl -sSL -o GrammarPolice.zip \
+            "https://github.com/${{ github.repository }}/releases/download/v${VERSION}/GrammarPolice.zip"
+          SHA256=$(shasum -a 256 GrammarPolice.zip | awk '{print $1}')
+          echo "Version: $VERSION"
+          echo "SHA256: $SHA256"
+          rm GrammarPolice.zip
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/tasszz2k/homebrew-tap.git" /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+
+          mkdir -p Casks
+
+          cat > Casks/grammar-police.rb << EOF
+          cask "grammar-police" do
+            version "$VERSION"
+            sha256 "$SHA256"
+
+            url "https://github.com/tasszz2k/GrammarPolice/releases/download/v#{version}/GrammarPolice.zip"
+            name "GrammarPolice"
+            desc "AI-powered menubar app for grammar correction and translation on macOS"
+            homepage "https://github.com/tasszz2k/GrammarPolice"
+
+            depends_on macos: ">= :sonoma"
+
+            app "GrammarPolice.app"
+
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-cr", "#{appdir}/GrammarPolice.app"],
+                             sudo: false
+            end
+
+            zap trash: [
+              "~/Library/Application Support/GrammarPolice",
+              "~/Library/Caches/com.tasszz2k.GrammarPolice",
+              "~/Library/Preferences/com.tasszz2k.GrammarPolice.plist",
+              "~/Library/Logs/GrammarPolice",
+            ]
+
+            caveats <<~EOS
+              GrammarPolice requires the following permissions:
+              - Accessibility: System Settings > Privacy & Security > Accessibility
+              - Input Monitoring: System Settings > Privacy & Security > Input Monitoring
+
+              Configure your OpenAI API key or local LLM in Preferences after installation.
+
+              Note: This app is not code-signed. If you see "app is damaged" error, run:
+                xattr -cr /Applications/GrammarPolice.app
+            EOS
+          end
+          EOF
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Casks/grammar-police.rb
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update GrammarPolice to v$VERSION"
+          git push
+
+          echo "Homebrew tap updated successfully!"
