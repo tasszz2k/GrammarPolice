@@ -5,6 +5,14 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.4](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.3...v0.0.4) (2026-03-15)
+
+
+### Bug Fixes
+
+* add workflow_dispatch trigger to homebrew workflow ([0bef113](https://github.com/tasszz2k/GrammarPolice/commit/0bef113e0be4bcaebda83d7c74313fdb44dee798))
+* use workflow_run trigger for homebrew publish ([c1dbe0a](https://github.com/tasszz2k/GrammarPolice/commit/c1dbe0ac8c4f8d7417de917915391e6c5fcbfa8e))
+
 ## [0.0.3](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.2...v0.0.3) (2026-03-15)
 
 
