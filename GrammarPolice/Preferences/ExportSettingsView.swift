@@ -109,8 +109,7 @@ struct ExportSettingsView: View {
     }
     
     private func performManualExport() {
-        guard let delegate = NSApp.delegate as? AppDelegate,
-              let service = delegate.autoExportService else {
+        guard let service = AutoExportService.shared else {
             exportResultMessage = "Export service not available"
             return
         }

@@ -17,11 +17,14 @@ enum ExportResult {
 @MainActor
 final class AutoExportService {
     
+    static private(set) var shared: AutoExportService?
+    
     private let modelContainer: ModelContainer
     private var exportTimer: Timer?
     
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
+        Self.shared = self
     }
     
     func start() {
