@@ -5,6 +5,18 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.4...v0.0.5) (2026-03-16)
+
+
+### Features
+
+* **export:** add manual Export Now button to settings ([267dd7c](https://github.com/tasszz2k/GrammarPolice/commit/267dd7c20a1d8a6fd819c7050f58655f707d8170))
+
+
+### Bug Fixes
+
+* sync app version with release-please tag in CI builds ([32cec4b](https://github.com/tasszz2k/GrammarPolice/commit/32cec4b30f6845c613f0a0f33bbce10770675777))
+
 ## [0.0.4](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.3...v0.0.4) (2026-03-15)
 
 
