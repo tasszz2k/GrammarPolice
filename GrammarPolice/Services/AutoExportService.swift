@@ -8,6 +8,12 @@
 import Foundation
 import SwiftData
 
+enum ExportResult {
+    case success(filename: String, entryCount: Int)
+    case noEntries
+    case error(String)
+}
+
 @MainActor
 final class AutoExportService {
     
@@ -36,6 +42,52 @@ final class AutoExportService {
     func stop() {
         exportTimer?.invalidate()
         exportTimer = nil
+    }
+    
+    func exportNow() -> ExportResult {
+        let settings = SettingsManager.shared
+        let folderPath = settings.autoExportFolderPath
+        
+        guard !folderPath.isEmpty else {
+            return .error("Export folder not configured")
+        }
+        
+        let prefix = settings.autoExportPrefix.isEmpty ? "learning_data" : settings.autoExportPrefix
+        let calendar = Calendar.current
+        let now = Date()
+        let year = calendar.component(.year, from: now)
+        let month = calendar.component(.month, from: now)
+        
+        let monthString = String(format: "%04d_%02d", year, month)
+        let filename = "\(prefix)_\(monthString).json"
+        let fileURL = URL(fileURLWithPath: folderPath).appendingPathComponent(filename)
+        
+        let folderURL = URL(fileURLWithPath: folderPath)
+        if !FileManager.default.fileExists(atPath: folderURL.path) {
+            do {
+                try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            } catch {
+                return .error("Failed to create export folder: \(error.localizedDescription)")
+            }
+        }
+        
+        let store = HistoryStore(modelContext: modelContainer.mainContext)
+        let entries = store.fetchEntries(forYear: year, month: month)
+        
+        if entries.isEmpty {
+            return .noEntries
+        }
+        
+        let json = store.exportForLearning(entries: entries)
+        
+        do {
+            try json.write(to: fileURL, atomically: true, encoding: .utf8)
+            SettingsManager.shared.lastAutoExportDate = Date()
+            LoggingService.shared.log("Manual export: \(entries.count) entries to \(filename)", level: .info)
+            return .success(filename: filename, entryCount: entries.count)
+        } catch {
+            return .error("Failed to write export file: \(error.localizedDescription)")
+        }
     }
     
     private func checkAndPerformCatchUpExport() {

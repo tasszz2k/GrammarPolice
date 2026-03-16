@@ -10,6 +10,7 @@ import AppKit
 
 struct ExportSettingsView: View {
     @ObservedObject private var settings = SettingsManager.shared
+    @State private var exportResultMessage: String?
     
     private var filenamePreview: String {
         let prefix = settings.autoExportPrefix.isEmpty ? "learning_data" : settings.autoExportPrefix
@@ -85,12 +86,44 @@ struct ExportSettingsView: View {
                         Text(lastExportString)
                             .foregroundColor(.secondary)
                     }
+                    
+                    HStack {
+                        Spacer()
+                        Button("Export Now") {
+                            performManualExport()
+                        }
+                        .disabled(settings.autoExportFolderPath.isEmpty)
+                    }
+                    
+                    if let message = exportResultMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 } header: {
                     Text("Status")
                 }
             }
         }
         .formStyle(.grouped)
+    }
+    
+    private func performManualExport() {
+        guard let delegate = NSApp.delegate as? AppDelegate,
+              let service = delegate.autoExportService else {
+            exportResultMessage = "Export service not available"
+            return
+        }
+        
+        let result = service.exportNow()
+        switch result {
+        case .success(let filename, let entryCount):
+            exportResultMessage = "Exported \(entryCount) entries to \(filename)"
+        case .noEntries:
+            exportResultMessage = "No entries for the current month"
+        case .error(let message):
+            exportResultMessage = message
+        }
     }
     
     private func selectFolder() {

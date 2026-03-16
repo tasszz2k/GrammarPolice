@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menubarController: MenubarController?
     private var hotkeyManager: HotkeyManager?
     private var modelContainer: ModelContainer?
-    private var autoExportService: AutoExportService?
+    private(set) var autoExportService: AutoExportService?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupModelContainer()
