@@ -66,8 +66,26 @@ jobs:
             exit 1
           fi
           CERT_PATH="${RUNNER_TEMP}/gp.p12"
-          KEYCHAIN_PATH="${RUNNER_TEMP}/build.keychain"
-          echo "${CERT_BASE64}" | base64 --decode > "${CERT_PATH}"
+          KEYCHAIN_PATH="${RUNNER_TEMP}/build.keychain-db"
+
+          # Diagnostics (no secret values printed, only sizes/hashes)
+          echo "CERT_BASE64 length: ${#CERT_BASE64}"
+          echo "CERT_PASSWORD length: ${#CERT_PASSWORD}"
+          printf '%s' "${CERT_BASE64}" | base64 --decode > "${CERT_PATH}"
+          echo "Decoded p12 size: $(wc -c < "${CERT_PATH}") bytes"
+          echo "Decoded p12 sha256: $(shasum -a 256 "${CERT_PATH}" | awk '{print $1}')"
+
+          # Verify the password against the p12 with openssl BEFORE touching keychain.
+          # This gives a clearer error than `security import`.
+          if ! openssl pkcs12 -in "${CERT_PATH}" -nokeys -passin "env:CERT_PASSWORD" >/dev/null 2>openssl.err; then
+            echo "openssl pkcs12 cannot open the p12 with the provided password."
+            echo "openssl stderr:"
+            sed 's/^/  /' openssl.err
+            exit 1
+          fi
+          rm -f openssl.err
+          echo "openssl pkcs12 verification: ok"
+
           security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
           security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
           security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
