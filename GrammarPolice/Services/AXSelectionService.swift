@@ -337,60 +337,58 @@ final class AXSelectionService {
     }
     
     // MARK: - Check if AX Replace is Likely to Work
-    
+
+    // Bundle id prefixes for apps that don't reliably expose text selection or
+    // accept AX text replacement. These are routed through the clipboard
+    // fallback path (synthesized Cmd+C / Cmd+V) instead of the Accessibility
+    // API. Matched via hasPrefix so wrapped/variant builds also match.
+    private static let problematicBundlePrefixes: [String] = [
+        "com.google.Chrome",
+        "com.microsoft.Word",
+        "com.apple.Safari",
+        "com.tinyspeck.slackmacgap",        // Slack
+        "com.hnc.Discord",                  // Discord
+        "com.microsoft.teams",              // Microsoft Teams
+        "com.microsoft.VSCode",             // VS Code
+        "com.visualstudio.code.oss",        // VSCodium / OSS builds
+        "com.todesktop.230313mzl4w4u92",    // Cursor (stable, ToDesktop wrapper)
+        "com.todesktop",                    // Cursor variants / other ToDesktop apps
+        "com.exafunction.windsurf",         // Windsurf
+        "com.electron",                     // Generic Electron apps
+        "com.brave.Browser",                // Brave
+        "com.operasoftware.Opera",          // Opera
+        "org.mozilla.firefox",              // Firefox
+        "com.vivaldi.Vivaldi"               // Vivaldi
+    ]
+
+    private static func isProblematicBundle(_ bundleId: String) -> Bool {
+        return problematicBundlePrefixes.contains(where: { bundleId.hasPrefix($0) })
+    }
+
     func canReplaceText() -> Bool {
         guard isAccessibilityEnabled else { return false }
-        
+
         guard let frontApp = NSWorkspace.shared.frontmostApplication else {
             return false
         }
-        
-        // Some apps are known to not support AX replacement well
-        // This includes Electron-based apps and some native apps with custom text rendering
-        let problematicBundles = [
-            "com.google.Chrome",
-            "com.microsoft.Word",
-            "com.apple.Safari",
-            "com.tinyspeck.slackmacgap",  // Slack
-            "com.hnc.Discord",             // Discord
-            "com.microsoft.teams",         // Microsoft Teams
-            "com.microsoft.VSCode",        // VS Code
-            "com.electron",                // Generic Electron apps
-            "com.brave.Browser",           // Brave
-            "com.operasoftware.Opera",     // Opera
-            "org.mozilla.firefox",         // Firefox
-            "com.vivaldi.Vivaldi"          // Vivaldi
-        ]
-        
+
         if let bundleId = frontApp.bundleIdentifier,
-           problematicBundles.contains(where: { bundleId.hasPrefix($0) }) {
+           Self.isProblematicBundle(bundleId) {
             LoggingService.shared.log("App \(bundleId) is known to have AX issues, will use clipboard fallback", level: .debug)
             return false
         }
-        
+
         return true
     }
-    
+
     // Check if the current app is known to have AX text selection issues
     func isAppWithAXIssues() -> Bool {
         guard let frontApp = NSWorkspace.shared.frontmostApplication,
               let bundleId = frontApp.bundleIdentifier else {
             return false
         }
-        
-        // Electron and Chromium-based apps typically don't expose text selection via AX
-        let problematicBundles = [
-            "com.tinyspeck.slackmacgap",  // Slack
-            "com.hnc.Discord",             // Discord
-            "com.microsoft.teams",         // Microsoft Teams
-            "com.microsoft.VSCode",        // VS Code
-            "com.electron",                // Generic Electron apps
-            "com.google.Chrome",           // Chrome
-            "com.brave.Browser",           // Brave
-            "org.mozilla.firefox"          // Firefox
-        ]
-        
-        return problematicBundles.contains(where: { bundleId.hasPrefix($0) })
+
+        return Self.isProblematicBundle(bundleId)
     }
 }
 
