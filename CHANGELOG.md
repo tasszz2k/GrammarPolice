@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.10](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.9...v0.0.10) (2026-04-27)
+
+
+### Bug Fixes
+
+* **release:** generate p12 with -legacy so security import works ([#10](https://github.com/tasszz2k/GrammarPolice/issues/10)) ([dda6cb6](https://github.com/tasszz2k/GrammarPolice/commit/dda6cb6b090107fe1237bbb1396991463e6db4ea))
+
 ## [0.0.9](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.8...v0.0.9) (2026-04-27)
 
 
