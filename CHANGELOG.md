@@ -5,6 +5,15 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.8](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.7...v0.0.8) (2026-04-27)
+
+
+### Bug Fixes
+
+* **hotkey:** consume global hotkeys via Carbon to stop leaking to focused app ([8ded0b0](https://github.com/tasszz2k/GrammarPolice/commit/8ded0b058e35ea5a7eafd4fb49392de0288092b4))
+* **release:** sign release builds with a stable self-signed cert ([def39b9](https://github.com/tasszz2k/GrammarPolice/commit/def39b9e0135d78b057c8d0fc31bef35e5538bb9))
+* **release:** sign release builds with a stable self-signed cert ([77ef68f](https://github.com/tasszz2k/GrammarPolice/commit/77ef68f55b9491e92ad64060f74888d7926184ae))
+
 ## [0.0.7](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.6...v0.0.7) (2026-04-27)
 
 
