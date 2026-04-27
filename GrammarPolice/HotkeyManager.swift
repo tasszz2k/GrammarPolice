@@ -2,7 +2,13 @@
 //  HotkeyManager.swift
 //  GrammarPolice
 //
-//  Global hotkey registration using NSEvent global monitoring
+//  Global hotkey registration using Carbon's RegisterEventHotKey.
+//
+//  Carbon hotkeys are dispatched to our process by the OS and are NOT
+//  delivered to the focused application, which prevents the previously
+//  observed problem where the focused app (e.g. Cursor / VS Code) would
+//  process the hotkey first -- mutating the user's text selection -- and
+//  the synthesized Cmd+C fallback then captured nothing.
 //
 
 import Carbon
@@ -16,14 +22,22 @@ final class HotkeyManager {
     var onGrammarCorrect: (() -> Void)?
     var onTranslate: (() -> Void)?
     
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
+    // Carbon registration state
+    private var grammarHotKeyRef: EventHotKeyRef?
+    private var translateHotKeyRef: EventHotKeyRef?
+    private var eventHandlerRef: EventHandlerRef?
+    
     private var permissionCheckTimer: Timer?
     private var wasAccessibilityGranted = false
     
     // Hotkey configurations
     private var grammarHotkey: HotkeyConfig
     private var translateHotkey: HotkeyConfig
+    
+    // Identifiers used to distinguish hotkeys inside the Carbon callback.
+    fileprivate static let grammarHotKeyID: UInt32 = 1
+    fileprivate static let translateHotKeyID: UInt32 = 2
+    private static let signature: OSType = 0x47504F4C  // 'GPOL' (GrammarPOLice)
     
     init() {
         self.grammarHotkey = SettingsManager.shared.grammarHotkey
@@ -32,13 +46,16 @@ final class HotkeyManager {
     }
     
     deinit {
-        // Note: Cannot call MainActor methods from deinit
-        // Clean up monitors directly here
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
+        // deinit is not MainActor-isolated; the Carbon C calls below are safe
+        // to invoke from any thread.
+        if let handler = eventHandlerRef {
+            RemoveEventHandler(handler)
         }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
+        if let ref = grammarHotKeyRef {
+            UnregisterEventHotKey(ref)
+        }
+        if let ref = translateHotKeyRef {
+            UnregisterEventHotKey(ref)
         }
         permissionCheckTimer?.invalidate()
     }
@@ -46,36 +63,121 @@ final class HotkeyManager {
     // MARK: - Registration
     
     func registerHotkeys() {
-        // Check if we have accessibility permission
         let trusted = AXIsProcessTrusted()
-        
         if !trusted {
-            LoggingService.shared.log("Accessibility permission not granted. Global hotkeys will not work.", level: .warning)
-            // Still try to register - it will work once permission is granted
+            LoggingService.shared.log("Accessibility permission not granted. Hotkeys will fire but text selection will be unavailable until granted.", level: .warning)
         }
         
-        // Global monitor for events when app is not focused
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleKeyEvent(event)
+        installEventHandlerIfNeeded()
+        
+        guard eventHandlerRef != nil else {
+            LoggingService.shared.log("Skipping hotkey registration: Carbon event handler failed to install.", level: .error)
+            return
         }
         
-        // Local monitor for events when app is focused
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if self?.handleKeyEvent(event) == true {
-                return nil // Consume the event
-            }
-            return event
-        }
+        registerCarbonHotkey(config: grammarHotkey, id: Self.grammarHotKeyID, into: &grammarHotKeyRef)
+        registerCarbonHotkey(config: translateHotkey, id: Self.translateHotKeyID, into: &translateHotKeyRef)
         
-        if globalMonitor != nil {
-            LoggingService.shared.log("Hotkeys registered successfully", level: .info)
+        if grammarHotKeyRef != nil || translateHotKeyRef != nil {
+            LoggingService.shared.log("Hotkeys registered (Carbon) - Grammar: \(grammarHotkey.displayString), Translate: \(translateHotkey.displayString)", level: .info)
         } else {
-            LoggingService.shared.log("Failed to register global hotkey monitor. Make sure Accessibility is enabled.", level: .error)
+            LoggingService.shared.log("Failed to register any global hotkeys.", level: .error)
         }
         
-        // If accessibility is not granted, start polling to re-register when granted
         if !trusted {
             startPermissionPolling()
+        }
+    }
+    
+    func unregisterAllHotkeys() {
+        if let ref = grammarHotKeyRef {
+            UnregisterEventHotKey(ref)
+            grammarHotKeyRef = nil
+        }
+        if let ref = translateHotKeyRef {
+            UnregisterEventHotKey(ref)
+            translateHotKeyRef = nil
+        }
+        LoggingService.shared.log("Hotkeys unregistered", level: .info)
+    }
+    
+    func updateHotkeys() {
+        grammarHotkey = SettingsManager.shared.grammarHotkey
+        translateHotkey = SettingsManager.shared.translateHotkey
+        
+        installEventHandlerIfNeeded()
+        registerCarbonHotkey(config: grammarHotkey, id: Self.grammarHotKeyID, into: &grammarHotKeyRef)
+        registerCarbonHotkey(config: translateHotkey, id: Self.translateHotKeyID, into: &translateHotKeyRef)
+        
+        LoggingService.shared.log("Hotkeys updated - Grammar: \(grammarHotkey.displayString), Translate: \(translateHotkey.displayString)", level: .info)
+    }
+    
+    // MARK: - Carbon helpers
+    
+    private func installEventHandlerIfNeeded() {
+        guard eventHandlerRef == nil else { return }
+        
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+        let userData = Unmanaged.passUnretained(self).toOpaque()
+        
+        let status = InstallEventHandler(
+            GetEventDispatcherTarget(),
+            hotKeyEventHandlerCallback,
+            1,
+            &eventType,
+            userData,
+            &eventHandlerRef
+        )
+        
+        if status != noErr {
+            LoggingService.shared.log("InstallEventHandler failed (status=\(status))", level: .error)
+            eventHandlerRef = nil
+        }
+    }
+    
+    private func registerCarbonHotkey(config: HotkeyConfig, id: UInt32, into ref: inout EventHotKeyRef?) {
+        if let existing = ref {
+            UnregisterEventHotKey(existing)
+            ref = nil
+        }
+        
+        // No modifiers means hotkey is unset; skip so we don't grab a bare key globally.
+        guard config.modifiers != 0 else {
+            LoggingService.shared.log("Skipping hotkey id=\(id) (no modifiers configured)", level: .debug)
+            return
+        }
+        
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id)
+        var newRef: EventHotKeyRef?
+        let status = RegisterEventHotKey(
+            config.keyCode,
+            config.modifiers,
+            hotKeyID,
+            GetEventDispatcherTarget(),
+            0,
+            &newRef
+        )
+        
+        if status == noErr {
+            ref = newRef
+        } else {
+            LoggingService.shared.log("RegisterEventHotKey failed (id=\(id), status=\(status))", level: .error)
+            ref = nil
+        }
+    }
+    
+    // MARK: - Dispatch (called from the Carbon C callback)
+    
+    fileprivate func handleHotKeyFired(id: UInt32) {
+        if id == Self.grammarHotKeyID {
+            LoggingService.shared.log("Grammar hotkey triggered", level: .debug)
+            onGrammarCorrect?()
+        } else if id == Self.translateHotKeyID {
+            LoggingService.shared.log("Translate hotkey triggered", level: .debug)
+            onTranslate?()
         }
     }
     
@@ -107,91 +209,43 @@ final class HotkeyManager {
             
             LoggingService.shared.log("Accessibility permission granted - re-registering hotkeys", level: .info)
             
-            // Unregister and re-register to get working monitors
             unregisterAllHotkeys()
-            
-            // Re-register (but don't start polling again since we now have permission)
-            globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                self?.handleKeyEvent(event)
-            }
-            
-            localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                if self?.handleKeyEvent(event) == true {
-                    return nil
-                }
-                return event
-            }
+            installEventHandlerIfNeeded()
+            registerCarbonHotkey(config: grammarHotkey, id: Self.grammarHotKeyID, into: &grammarHotKeyRef)
+            registerCarbonHotkey(config: translateHotkey, id: Self.translateHotKeyID, into: &translateHotKeyRef)
             
             LoggingService.shared.log("Hotkeys re-registered after permission grant", level: .info)
         }
     }
-    
-    func unregisterAllHotkeys() {
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
-        }
-        
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
-        }
-        
-        LoggingService.shared.log("Hotkeys unregistered", level: .info)
+}
+
+// MARK: - Carbon Event Handler (C callback)
+
+private let hotKeyEventHandlerCallback: EventHandlerUPP = { (_, theEvent, userData) -> OSStatus in
+    guard let userData, let theEvent else {
+        return OSStatus(eventNotHandledErr)
     }
     
-    func updateHotkeys() {
-        grammarHotkey = SettingsManager.shared.grammarHotkey
-        translateHotkey = SettingsManager.shared.translateHotkey
-        LoggingService.shared.log("Hotkeys updated - Grammar: \(grammarHotkey.displayString), Translate: \(translateHotkey.displayString)", level: .info)
+    var hkID = EventHotKeyID()
+    let status = GetEventParameter(
+        theEvent,
+        EventParamName(kEventParamDirectObject),
+        EventParamType(typeEventHotKeyID),
+        nil,
+        MemoryLayout<EventHotKeyID>.size,
+        nil,
+        &hkID
+    )
+    guard status == noErr else { return status }
+    
+    let firedID = hkID.id
+    
+    Task { @MainActor in
+        let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
+        manager.handleHotKeyFired(id: firedID)
     }
     
-    // MARK: - Event Handling
-    
-    @discardableResult
-    private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        let keyCode = UInt32(event.keyCode)
-        let modifiers = convertModifierFlags(event.modifierFlags)
-        
-        // Check for grammar hotkey (default: Cmd+Shift+G)
-        if keyCode == grammarHotkey.keyCode && modifiers == grammarHotkey.modifiers {
-            LoggingService.shared.log("Grammar hotkey triggered via global monitor", level: .debug)
-            DispatchQueue.main.async { [weak self] in
-                self?.onGrammarCorrect?()
-            }
-            return true
-        }
-        
-        // Check for translate hotkey (default: Cmd+Shift+T)
-        if keyCode == translateHotkey.keyCode && modifiers == translateHotkey.modifiers {
-            LoggingService.shared.log("Translate hotkey triggered via global monitor", level: .debug)
-            DispatchQueue.main.async { [weak self] in
-                self?.onTranslate?()
-            }
-            return true
-        }
-        
-        return false
-    }
-    
-    private func convertModifierFlags(_ flags: NSEvent.ModifierFlags) -> UInt32 {
-        var modifiers: UInt32 = 0
-        
-        if flags.contains(.command) {
-            modifiers |= 256  // cmdKey
-        }
-        if flags.contains(.shift) {
-            modifiers |= 512  // shiftKey
-        }
-        if flags.contains(.option) {
-            modifiers |= 2048  // optionKey
-        }
-        if flags.contains(.control) {
-            modifiers |= 4096  // controlKey
-        }
-        
-        return modifiers
-    }
+    return noErr
 }
 
 // MARK: - Hotkey Recording
@@ -245,4 +299,3 @@ final class HotkeyRecorder: ObservableObject {
         }
     }
 }
-

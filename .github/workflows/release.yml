@@ -53,19 +53,60 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Build Release
+      - name: Import signing cert
+        env:
+          CERT_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CERT_BASE64}" ]; then
+            echo "MACOS_CERT_P12_BASE64 secret is not set."
+            echo "Run scripts/generate-signing-cert.sh once and add the secrets in repo settings."
+            exit 1
+          fi
+          CERT_PATH="${RUNNER_TEMP}/gp.p12"
+          KEYCHAIN_PATH="${RUNNER_TEMP}/build.keychain"
+          echo "${CERT_BASE64}" | base64 --decode > "${CERT_PATH}"
+          security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
+          security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security import "${CERT_PATH}" -P "${CERT_PASSWORD}" \
+            -A -t cert -f pkcs12 -k "${KEYCHAIN_PATH}" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychain -d user -s "${KEYCHAIN_PATH}" login.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}" >/dev/null
+          security find-identity -v -p codesigning "${KEYCHAIN_PATH}"
+          rm -f "${CERT_PATH}"
+
+      - name: Build Release (unsigned)
         run: |
           xcodebuild -project GrammarPolice.xcodeproj \
             -scheme GrammarPolice \
             -configuration Release \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath build/DerivedData \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION=${{ needs.release-please.outputs.version }} \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             build
+
+      - name: Sign app with stable self-signed cert
+        run: |
+          set -euo pipefail
+          APP=build/DerivedData/Build/Products/Release/GrammarPolice.app
+          codesign --force --deep --options runtime \
+            --identifier com.tasszz2k.GrammarPolice \
+            --sign "GrammarPolice Self-Signed" \
+            --entitlements GrammarPolice/GrammarPolice.entitlements \
+            --timestamp=none \
+            "${APP}"
+          codesign --verify --verbose=4 "${APP}"
+          codesign -dvvv "${APP}"
+          codesign -d -r- "${APP}"
 
       - name: Create App Bundle
         run: |

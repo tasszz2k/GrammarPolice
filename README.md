@@ -73,6 +73,13 @@ Download the latest release from [GitHub Releases](https://github.com/tasszz2k/G
 3. Right-click the app and select "Open" (first time only, to bypass Gatekeeper)
 4. Grant Accessibility permission when prompted
 
+> **Note on signing:** Release builds are signed with a stable self-signed
+> certificate (not an Apple Developer ID), so macOS Gatekeeper still flags the
+> first install as an "unidentified developer". The self-signed identity is
+> intentionally pinned across releases to minimize being re-prompted for
+> Accessibility on every upgrade. See the Troubleshooting section if it still
+> happens on your macOS version.
+
 ### Build from Source
 
 1. Clone the repository:
@@ -242,10 +249,42 @@ GrammarPolice works with virtually any application:
 
 ![App Damaged Warning](docs/images/warning-cant-be-install.png)
 
-This happens because the app is not code-signed. Run this command to fix:
+The release is signed with a self-signed certificate rather than an Apple
+Developer ID, so Gatekeeper rejects it on first launch. Strip the quarantine
+attribute to allow it:
 ```bash
 xattr -cr /Applications/GrammarPolice.app
 ```
+
+### Accessibility permission asked again after every upgrade
+
+macOS keeps the Accessibility grant attached to the app's signing identity.
+Apps signed with an Apple Developer ID keep the grant across upgrades because
+their identity (Team ID + bundle ID + designated requirement) stays stable.
+
+Older GrammarPolice releases (<= v0.x ad-hoc builds) had no stable identity,
+so every upgrade was treated as a brand-new app and Accessibility had to be
+re-granted.
+
+Current releases sign with a stable self-signed certificate and pin the
+signing identifier to `com.tasszz2k.GrammarPolice`, which on most macOS
+versions is enough for TCC to keep the grant across upgrades. If your macOS
+version still drops it on upgrade, that is a known limitation of non-Apple
+signatures - the only fully reliable fix is an Apple Developer ID + notarized
+build, which the project does not currently ship.
+
+To debug locally:
+```bash
+codesign -dvvv /Applications/GrammarPolice.app
+codesign -d -r- /Applications/GrammarPolice.app
+```
+The `Identifier`, `Authority`, and designated requirement should match between
+the old and new versions. If they match and the grant is still dropped,
+re-grant Accessibility once and it should stick from that release onward.
+
+> **Maintainers:** see [`docs/signing-cert-rotation.md`](docs/signing-cert-rotation.md)
+> for the runbook covering certificate backup, rotation, and migration to
+> Apple Developer ID.
 
 ### Hotkeys not working
 1. Check Accessibility permission is granted
