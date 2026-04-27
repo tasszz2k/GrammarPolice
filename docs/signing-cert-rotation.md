@@ -57,6 +57,47 @@ Store both files in two independent places:
 The CI runner only ever sees the secrets in GitHub Actions, never these
 backups.
 
+## PKCS#12 format gotcha (`-legacy`)
+
+The p12 must be created with `openssl pkcs12 -export -legacy`, not the
+OpenSSL 3.x default. The macOS `security` command's PKCS#12 importer only
+understands the older `pbeWithSHA1And40BitRC2-CBC` + HMAC-SHA-1 encryption.
+A modern p12 (PBES2 + AES-256 + HMAC-SHA-256) decodes successfully with
+`openssl pkcs12 -info` but fails the keychain import in CI with the
+misleading error:
+
+```
+security: SecKeychainItemImport: MAC verification failed during PKCS12 import (wrong password?)
+```
+
+The password is fine in that case; the algorithm is not. `scripts/generate-signing-cert.sh`
+already uses `-legacy`, but if you ever export a p12 manually (e.g. when
+migrating an existing private key from Keychain Access), make sure it is in
+the legacy format. To convert an OpenSSL 3.x p12 to the legacy format
+without changing the underlying key/cert:
+
+```bash
+OLD=path/to/modern.p12
+OLD_PASS='...'
+NEW_PASS=$(openssl rand -hex 16)
+WORK=$(mktemp -d)
+
+openssl pkcs12 -in "$OLD" -passin pass:"$OLD_PASS" -nocerts -nodes -out "$WORK/key.pem"
+openssl pkcs12 -in "$OLD" -passin pass:"$OLD_PASS" -clcerts -nokeys  -out "$WORK/cert.pem"
+
+openssl pkcs12 -export -legacy \
+  -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
+  -name "GrammarPolice Self-Signed" \
+  -out "$WORK/legacy.p12" \
+  -passout pass:"$NEW_PASS"
+
+# Use $WORK/legacy.p12 + $NEW_PASS as the new secrets.
+```
+
+The cert leaf hash is preserved (same key + same x509 cert, only the p12
+container differs), so this kind of conversion is **not** a rotation -
+existing users keep their Accessibility grant.
+
 ## When you need to rotate the certificate
 
 Rotate only when one of these is true:

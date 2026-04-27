@@ -51,14 +51,19 @@ openssl req -x509 -newkey rsa:2048 \
   -config "${CERT_CNF}" \
   -extensions v3 >/dev/null 2>&1
 
-echo "Bundling key + cert into a password-protected PKCS#12..."
-openssl pkcs12 -export \
+echo "Bundling key + cert into a password-protected PKCS#12 (legacy format)..."
+# IMPORTANT: -legacy is required so that the macOS `security` command can
+# decrypt the p12 inside GitHub Actions. OpenSSL 3.x defaults to
+# PBES2 + AES-256 + HMAC-SHA-256, which `security import` cannot handle and
+# fails with "MAC verification failed during PKCS12 import (wrong password?)".
+# -legacy switches to pbeWithSHA1And40BitRC2-CBC + HMAC-SHA-1, which the
+# system Security framework supports natively.
+openssl pkcs12 -export -legacy \
   -inkey "${CERT_KEY}" \
   -in "${CERT_CRT}" \
   -name "${CERT_NAME}" \
   -out "${CERT_P12}" \
-  -passout pass:"${CERT_PASSWORD}" \
-  -macalg sha256
+  -passout pass:"${CERT_PASSWORD}"
 
 CERT_BASE64=$(base64 -i "${CERT_P12}")
 
