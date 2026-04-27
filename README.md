@@ -282,6 +282,10 @@ The `Identifier`, `Authority`, and designated requirement should match between
 the old and new versions. If they match and the grant is still dropped,
 re-grant Accessibility once and it should stick from that release onward.
 
+> **Maintainers:** see [`docs/signing-cert-rotation.md`](docs/signing-cert-rotation.md)
+> for the runbook covering certificate backup, rotation, and migration to
+> Apple Developer ID.
+
 ### Hotkeys not working
 1. Check Accessibility permission is granted
 2. Restart the app after granting permission
