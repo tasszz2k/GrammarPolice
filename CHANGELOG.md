@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.14](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.13...v0.0.14) (2026-05-17)
+
+
+### Bug Fixes
+
+* **grammar:** enforce minimal substring quoting in explore Fixes ([ebc9628](https://github.com/tasszz2k/GrammarPolice/commit/ebc962856c7c1fe0591d6d35ceb3e89f251bcd1f))
+
 ## [0.0.13](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.12...v0.0.13) (2026-05-17)
 
 
