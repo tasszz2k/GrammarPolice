@@ -445,7 +445,9 @@ final class SettingsManager: ObservableObject {
 
         Fixes:
         - For each correction: "<original phrase>" -> "<corrected phrase>" - <one-line reason>
-        - One bullet per fix. Quote the exact substrings, not whole sentences.
+        - One bullet per fix. Quote ONLY the minimal changed substring (a few words around the edit), NEVER the full sentence. Do not repeat unchanged words.
+        - Example of correct minimal quoting: "change once we" -> "change. Once we" - split comma splice.
+        - Example of INCORRECT quoting (do not do this): repeating the entire sentence on both sides of the arrow.
         - If there are no corrections, write a single bullet "No changes needed - the text is already correct."
 
         Word notes:
