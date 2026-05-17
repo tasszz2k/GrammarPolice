@@ -129,9 +129,26 @@ struct ExploreDialogView: View {
 // MARK: - Window presentation
 
 @MainActor
+final class ExploreDialogWindowDelegate: NSObject, NSWindowDelegate {
+    private var didStopModal = false
+
+    func windowWillClose(_ notification: Notification) {
+        stopModalOnce()
+    }
+
+    func stopModalOnce() {
+        guard !didStopModal else { return }
+        didStopModal = true
+        NSApp.stopModal()
+    }
+}
+
+@MainActor
 enum ExploreDialogPresenter {
     /// Shows the dialog as an application-modal window. Blocks until the user
-    /// clicks Done or closes the window.
+    /// clicks Done or closes the window (either via the red close button or
+    /// the Done button — both go through the shared delegate so the modal
+    /// loop is always torn down).
     static func presentModal(payload: ExploreDialogPayload) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 620, height: 640),
@@ -141,22 +158,37 @@ enum ExploreDialogPresenter {
         )
         window.title = payload.windowTitle
         window.isReleasedWhenClosed = false
-        window.center()
         window.titlebarAppearsTransparent = false
 
+        let delegate = ExploreDialogWindowDelegate()
+        window.delegate = delegate
+
         let host = NSHostingController(
-            rootView: ExploreDialogView(payload: payload) {
-                NSApp.stopModal()
+            rootView: ExploreDialogView(payload: payload) { [weak window] in
+                // Closing the window will fire windowWillClose, which calls
+                // stopModal exactly once via the delegate.
+                window?.performClose(nil)
             }
         )
         window.contentViewController = host
-        window.setContentSize(host.view.fittingSize)
+        // Lay out before reading fittingSize so we get a real value rather
+        // than the .zero an unlaid-out NSHostingController returns.
+        host.view.layoutSubtreeIfNeeded()
+        let fitting = host.view.fittingSize
+        let size = NSSize(
+            width: max(fitting.width, 560),
+            height: max(fitting.height, 520)
+        )
+        window.setContentSize(size)
         window.center()
 
+        NSApp.activate(ignoringOtherApps: true)
         NSApp.runModal(for: window)
 
-        // Cleanup
+        // Cleanup. delegate is kept alive via window.delegate until here.
         SpeechService.shared.stop()
+        window.delegate = nil
         window.orderOut(nil)
+        _ = delegate  // silence unused-warning, keep alive until end
     }
 }

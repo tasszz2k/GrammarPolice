@@ -110,7 +110,7 @@ final class LLMClient {
         let prompts = SettingsManager.shared.getGrammarExplorePrompt(for: text, context: context)
         // Explore output (corrected + multi-section lesson) needs more output
         // tokens than baseline grammar correction.
-        let override = max(SettingsManager.shared.maxTokens, 1500)
+        let override = max(SettingsManager.shared.maxTokens, 800)
         return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user, maxTokensOverride: override)
     }
     
@@ -124,7 +124,7 @@ final class LLMClient {
         // (e.g. 500) routinely truncates the output. Lift the ceiling for this
         // path while leaving the user-configured setting untouched.
         let override: Int? = SettingsManager.shared.translationMode == .explore
-            ? max(SettingsManager.shared.maxTokens, 1500)
+            ? max(SettingsManager.shared.maxTokens, 800)
             : nil
         return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user, maxTokensOverride: override)
     }
