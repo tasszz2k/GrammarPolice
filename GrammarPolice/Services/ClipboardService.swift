@@ -86,33 +86,47 @@ final class ClipboardService {
     
     func captureSelectedTextViaCopy() async -> String? {
         let shouldRestore = SettingsManager.shared.restoreClipboard
-        
+
+        // Snapshot existing clipboard text so we can fall back to it when the
+        // focused app has no selection or swallows Cmd+C (e.g. TUIs like
+        // Claude Code where Cmd+C is SIGINT, not copy).
+        let previousText = pasteboard.string(forType: .string)
+
         if shouldRestore {
             saveClipboardState()
         }
-        
+
         // Clear clipboard first and record change count
         pasteboard.clearContents()
         let clearedChangeCount = pasteboard.changeCount
-        
+
         LoggingService.shared.log("Clipboard cleared, attempting Cmd+C fallback", level: .debug)
-        
+
         // Small delay before sending key event (helps with app responsiveness)
         try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-        
+
         // Simulate Cmd+C
         simulateCopy()
-        
+
         // Wait for clipboard to update (increased timeout for slow apps like Slack)
         let capturedText = await waitForClipboardChange(from: clearedChangeCount, timeout: 2.0)
-        
+
         if let text = capturedText, !text.isEmpty {
             LoggingService.shared.log("Captured text via copy fallback, length: \(text.count)", level: .debug)
-        } else {
-            LoggingService.shared.log("Copy fallback: no text captured (clipboard unchanged or empty)", level: .debug)
+            return text
         }
-        
-        return capturedText
+
+        if let fallback = previousText, !fallback.isEmpty {
+            LoggingService.shared.log("Copy fallback empty; using prior clipboard text, length: \(fallback.count)", level: .debug)
+            // Restore prior clipboard text so subsequent paste/replace logic
+            // sees a consistent clipboard state.
+            pasteboard.clearContents()
+            pasteboard.setString(fallback, forType: .string)
+            return fallback
+        }
+
+        LoggingService.shared.log("Copy fallback: no text captured and clipboard was empty", level: .debug)
+        return nil
     }
     
     private func waitForClipboardChange(from changeCount: Int, timeout: TimeInterval) async -> String? {
