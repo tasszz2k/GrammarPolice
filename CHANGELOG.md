@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.16](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.15...v0.0.16) (2026-05-17)
+
+
+### Bug Fixes
+
+* **dialog:** unified modal teardown + tighter explore max tokens ([ab22f7d](https://github.com/tasszz2k/GrammarPolice/commit/ab22f7de3b0a951e89e249cdefabd4a9e3162c58))
+
 ## [0.0.15](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.14...v0.0.15) (2026-05-17)
 
 
