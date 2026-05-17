@@ -96,6 +96,13 @@ final class ClipboardService {
             saveClipboardState()
         }
 
+        // Wait until the user releases the modifier keys from the hotkey
+        // (Cmd, Option, Shift, Control). If we synthesize Cmd+C while the
+        // user is still holding e.g. Option, the system sees Cmd+Option+C
+        // which is NOT a copy command and the clipboard never updates.
+        // Bounded wait (~500ms) so we don't hang if the user keeps holding.
+        await waitForModifierKeysReleased(timeout: 0.5)
+
         // Clear clipboard first and record change count
         pasteboard.clearContents()
         let clearedChangeCount = pasteboard.changeCount
@@ -150,8 +157,27 @@ final class ClipboardService {
         return getText()
     }
     
+    // MARK: - Modifier-key release
+
+    private func waitForModifierKeysReleased(timeout: TimeInterval) async {
+        // CGEventSource.flagsState reports the live hardware modifier state.
+        // Poll until none of the four hotkey modifiers are held, or we hit
+        // the timeout (in which case we fire the copy anyway).
+        let pollInterval: UInt64 = 20_000_000 // 20ms
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            let flags = CGEventSource.flagsState(.combinedSessionState)
+            let modifiers: CGEventFlags = [.maskCommand, .maskAlternate, .maskShift, .maskControl]
+            if flags.intersection(modifiers).isEmpty {
+                return
+            }
+            try? await Task.sleep(nanoseconds: pollInterval)
+        }
+        LoggingService.shared.log("Modifier-key release wait timed out; proceeding with Cmd+C", level: .debug)
+    }
+
     // MARK: - Simulate Key Events
-    
+
     private func simulateCopy() {
         // Create Cmd+C key event
         let source = CGEventSource(stateID: .hidSystemState)

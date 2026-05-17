@@ -171,7 +171,20 @@ final class HotkeyManager {
     
     // MARK: - Dispatch (called from the Carbon C callback)
     
+    // Debounce table: ignore repeated hotkey fires that arrive within this
+    // window. macOS auto-repeats key-down events while the hotkey is held;
+    // without this guard the grammar/translate flow would fire dozens of
+    // times per second.
+    private static let hotkeyDebounceInterval: TimeInterval = 0.5
+    private var lastHotKeyFire: [UInt32: Date] = [:]
+
     fileprivate func handleHotKeyFired(id: UInt32) {
+        let now = Date()
+        if let last = lastHotKeyFire[id], now.timeIntervalSince(last) < Self.hotkeyDebounceInterval {
+            return
+        }
+        lastHotKeyFire[id] = now
+
         if id == Self.grammarHotKeyID {
             LoggingService.shared.log("Grammar hotkey triggered", level: .debug)
             onGrammarCorrect?()
