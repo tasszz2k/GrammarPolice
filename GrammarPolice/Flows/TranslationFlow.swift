@@ -62,7 +62,7 @@ final class TranslationFlow {
             surroundingContext = nil
         } else {
             do {
-                let selectionContext = try axService.getSelectedTextWithContext()
+                let selectionContext = try axService.getSelectedTextWithContext(window: SettingsManager.shared.contextWindowChars)
                 selectedText = selectionContext.selectedText
                 surroundingContext = selectionContext.surroundingContext
             } catch AXError.secureTextField {

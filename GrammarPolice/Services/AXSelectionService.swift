@@ -132,7 +132,7 @@ final class AXSelectionService {
         return text
     }
     
-    func getSelectedTextWithContext() throws -> SelectionContext {
+    func getSelectedTextWithContext(window: Int) throws -> SelectionContext {
         guard isAccessibilityEnabled else {
             throw AXError.accessibilityNotEnabled
         }
@@ -196,7 +196,6 @@ final class AXSelectionService {
             LoggingService.shared.log("Got selected text via AX, length: \(text.count) (range decode failed)", level: .debug)
             return SelectionContext(selectedText: text, surroundingContext: nil)
         }
-        let window = SettingsManager.shared.contextWindowChars
         let surroundingContext = extractSurroundingWindow(
             fullText: fullText,
             selectionLocation: cfRange.location,

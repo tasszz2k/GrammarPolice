@@ -62,7 +62,7 @@ final class GrammarCorrectionFlow {
             surroundingContext = nil
         } else {
             do {
-                let ctx = try axService.getSelectedTextWithContext()
+                let ctx = try axService.getSelectedTextWithContext(window: SettingsManager.shared.contextWindowChars)
                 selectedText = ctx.selectedText
                 surroundingContext = ctx.surroundingContext
             } catch AXError.secureTextField {
