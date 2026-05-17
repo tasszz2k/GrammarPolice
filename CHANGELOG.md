@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.12](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.11...v0.0.12) (2026-05-17)
+
+
+### Bug Fixes
+
+* **context:** pass window param to getSelectedTextWithContext ([8486c1f](https://github.com/tasszz2k/GrammarPolice/commit/8486c1f6baad55d92017020b5da8d57ee7414d6c))
+
 ## [0.0.11](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.10...v0.0.11) (2026-05-17)
 
 
