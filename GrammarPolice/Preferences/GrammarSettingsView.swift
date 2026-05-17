@@ -45,8 +45,31 @@ struct GrammarSettingsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                
+
                 Text(modeDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Toggle("Explore (show lesson instead of auto-replace)", isOn: Binding(
+                    get: { settings.grammarExploreEnabled },
+                    set: { settings.grammarExploreEnabled = $0 }
+                ))
+                Text("When on, the grammar hotkey does NOT replace selected text. Instead it shows a dialog with the original, the corrected version, and a structured lesson explaining the fixes. The corrected text is also copied to the clipboard.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    Stepper(
+                        String(format: "Notification duration: %.1fs", settings.notificationDurationSec),
+                        value: Binding(
+                            get: { settings.notificationDurationSec },
+                            set: { settings.notificationDurationSec = $0 }
+                        ),
+                        in: 1.0...30.0,
+                        step: 0.5
+                    )
+                }
+                Text("How long the in-app toast stays on screen after a grammar correction. Toasts show the full corrected text without truncation.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
@@ -103,6 +126,40 @@ struct GrammarSettingsView: View {
             } header: {
                 Text("Output")
             }
+
+            Section {
+                Stepper("Context Window: \(settings.contextWindowChars) chars",
+                        value: Binding(
+                            get: { settings.contextWindowChars },
+                            set: { settings.contextWindowChars = $0 }
+                        ),
+                        in: 0...2000,
+                        step: 50)
+
+                Text("Characters captured before and after the selection. Sent to the LLM for reference. 0 disables surrounding-context capture.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Global Context:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    TextEditor(text: Binding(
+                        get: { settings.globalContext },
+                        set: { settings.globalContext = $0 }
+                    ))
+                    .frame(height: 100)
+                    .font(.system(.body, design: .monospaced))
+                    .border(Color.secondary.opacity(0.3))
+
+                    Text("Persistent context appended to every grammar/translation system prompt. Example: \"DevOps engineer at Axon. Writes professional Slack messages and emails in en-US. Prefers concise, technical language.\"")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Context")
+            }
             
             Section {
                 Picker("Target Language:", selection: Binding(
@@ -113,8 +170,18 @@ struct GrammarSettingsView: View {
                         Text(lang).tag(lang)
                     }
                 }
-                
-                Text("Translation works with any source language and translates to the selected target language.")
+
+                Picker("Translation Mode:", selection: Binding(
+                    get: { settings.translationMode },
+                    set: { settings.translationMode = $0 }
+                )) {
+                    ForEach(TranslationMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(translationModeDescription)
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
@@ -157,6 +224,15 @@ struct GrammarSettingsView: View {
         .formStyle(.grouped)
     }
     
+    private var translationModeDescription: String {
+        switch settings.translationMode {
+        case .simple:
+            return "Plain translation into the target language. Returns only the translated text."
+        case .explore:
+            return "Learner mode. Returns a rich dictionary-style entry: meaning, part of speech, examples, word family, collocations, synonyms, contrast, and usage notes."
+        }
+    }
+
     private var modeDescription: String {
         switch settings.grammarMode {
         case .minimal:
@@ -185,7 +261,7 @@ struct GrammarSettingsView: View {
                     result = try await LocalLLMRunner.shared.correctGrammar(maskedResult.maskedText)
                 }
                 
-                let unmasked = MaskingService.shared.unmaskTokens(in: result.result, using: maskedResult.mapping)
+                let unmasked = MaskingService.shared.unmaskTokens(in: result.result, using: maskedResult.mapping, orderedFallback: maskedResult.orderedOriginals)
                 
                 await MainActor.run {
                     testOutput = unmasked

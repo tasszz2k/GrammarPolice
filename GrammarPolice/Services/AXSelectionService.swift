@@ -196,48 +196,139 @@ final class AXSelectionService {
             LoggingService.shared.log("Got selected text via AX, length: \(text.count) (range decode failed)", level: .debug)
             return SelectionContext(selectedText: text, surroundingContext: nil)
         }
-        let surroundingContext = extractSurroundingSentence(
+        let window = SettingsManager.shared.contextWindowChars
+        let surroundingContext = extractSurroundingWindow(
             fullText: fullText,
             selectionLocation: cfRange.location,
-            selectionLength: cfRange.length
+            selectionLength: cfRange.length,
+            charsBefore: window,
+            charsAfter: window
         )
         LoggingService.shared.log("Got selected text via AX, length: \(text.count), context length: \(surroundingContext?.count ?? 0)", level: .debug)
         return SelectionContext(selectedText: text, surroundingContext: surroundingContext)
     }
-    
-    private func extractSurroundingSentence(fullText: String, selectionLocation: Int, selectionLength: Int) -> String? {
-        let utf16 = fullText.utf16
-        let utf16Count = utf16.count
-        let selectionEnd = selectionLocation + selectionLength
-        guard selectionLocation >= 0, selectionEnd <= utf16Count else { return nil }
-        let terminators: Set<UInt16> = [0x002E, 0x0021, 0x003F, 0x000A]
-        var sentenceStart = 0
-        if selectionLocation > 0 {
-            for i in stride(from: selectionLocation - 1, through: 0, by: -1) {
-                let idx = utf16.index(utf16.startIndex, offsetBy: i)
-                if terminators.contains(utf16[idx]) {
-                    sentenceStart = i + 1
-                    break
-                }
-            }
-        }
-        var sentenceEnd = utf16Count
-        for i in selectionEnd..<utf16Count {
-            let idx = utf16.index(utf16.startIndex, offsetBy: i)
-            if terminators.contains(utf16[idx]) {
-                sentenceEnd = i + 1
-                break
-            }
-        }
-        guard let strStart = utf16.index(utf16.startIndex, offsetBy: sentenceStart, limitedBy: utf16.endIndex)?.samePosition(in: fullText),
-              let strEnd = utf16.index(utf16.startIndex, offsetBy: sentenceEnd, limitedBy: utf16.endIndex)?.samePosition(in: fullText) else {
+
+    // Fetch full text of focused element (without needing a selection range).
+    // Used as a fallback to build context when the selection itself was captured
+    // via Cmd+C (clipboard) rather than via AX.
+    func getFocusedElementFullText() -> String? {
+        guard isAccessibilityEnabled,
+              let frontApp = NSWorkspace.shared.frontmostApplication else {
             return nil
         }
-        var result = String(fullText[strStart..<strEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if result.count > 500 {
-            result = String(result.prefix(500))
+        let pid = frontApp.processIdentifier
+        let appElement = AXUIElementCreateApplication(pid)
+        var focusedElement: CFTypeRef?
+        let focusResult = AXUIElementCopyAttributeValue(
+            appElement,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedElement
+        )
+        guard focusResult == .success, let element = focusedElement else {
+            return nil
         }
+        let axElement = element as! AXUIElement
+        var fullTextRef: CFTypeRef?
+        let valueResult = AXUIElementCopyAttributeValue(
+            axElement,
+            kAXValueAttribute as CFString,
+            &fullTextRef
+        )
+        guard valueResult == .success, let fullText = fullTextRef as? String, !fullText.isEmpty else {
+            return nil
+        }
+        return fullText
+    }
+
+    // Build context from full text by locating the selection substring and
+    // slicing a char window around it. Returns nil when selection text isn't
+    // found in fullText (e.g. clipboard came from a different source).
+    func contextWindow(around selection: String, fullText: String, window: Int) -> String? {
+        guard !selection.isEmpty, !fullText.isEmpty,
+              let range = fullText.range(of: selection) else {
+            return nil
+        }
+        let startOffset = fullText.distance(from: fullText.startIndex, to: range.lowerBound)
+        let length = fullText.distance(from: range.lowerBound, to: range.upperBound)
+        return extractSurroundingWindow(
+            fullText: fullText,
+            selectionLocation: startOffset,
+            selectionLength: length,
+            charsBefore: window,
+            charsAfter: window,
+            useUTF16Offsets: false
+        )
+    }
+
+    private func extractSurroundingWindow(
+        fullText: String,
+        selectionLocation: Int,
+        selectionLength: Int,
+        charsBefore: Int,
+        charsAfter: Int,
+        useUTF16Offsets: Bool = true
+    ) -> String? {
+        // Translate offsets to String.Index. AX returns UTF-16 offsets; our
+        // helper variant may pass native String offsets.
+        let startIndex: String.Index
+        let endIndex: String.Index
+        if useUTF16Offsets {
+            let utf16 = fullText.utf16
+            let utf16Count = utf16.count
+            let selectionEnd = selectionLocation + selectionLength
+            guard selectionLocation >= 0, selectionEnd <= utf16Count else { return nil }
+            guard let s = utf16.index(utf16.startIndex, offsetBy: selectionLocation, limitedBy: utf16.endIndex)?.samePosition(in: fullText),
+                  let e = utf16.index(utf16.startIndex, offsetBy: selectionEnd, limitedBy: utf16.endIndex)?.samePosition(in: fullText) else {
+                return nil
+            }
+            startIndex = s
+            endIndex = e
+        } else {
+            let count = fullText.count
+            let selectionEnd = selectionLocation + selectionLength
+            guard selectionLocation >= 0, selectionEnd <= count else { return nil }
+            startIndex = fullText.index(fullText.startIndex, offsetBy: selectionLocation)
+            endIndex = fullText.index(fullText.startIndex, offsetBy: selectionEnd)
+        }
+
+        // Step back charsBefore chars, then snap to nearest whitespace to avoid
+        // cutting mid-word.
+        let beforeStart = fullText.index(startIndex, offsetBy: -charsBefore, limitedBy: fullText.startIndex) ?? fullText.startIndex
+        let snappedStart = snapForward(in: fullText, from: beforeStart, notPast: startIndex)
+
+        let afterEnd = fullText.index(endIndex, offsetBy: charsAfter, limitedBy: fullText.endIndex) ?? fullText.endIndex
+        let snappedEnd = snapBackward(in: fullText, from: afterEnd, notBefore: endIndex)
+
+        let result = String(fullText[snappedStart..<snappedEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
         return result.isEmpty ? nil : result
+    }
+
+    // Move forward from `start` until whitespace boundary, but never past `notPast`.
+    private func snapForward(in text: String, from start: String.Index, notPast limit: String.Index) -> String.Index {
+        if start == text.startIndex { return start }
+        var idx = start
+        while idx < limit {
+            if text[idx].isWhitespace || text[idx].isNewline {
+                let next = text.index(after: idx)
+                return next > limit ? start : next
+            }
+            idx = text.index(after: idx)
+        }
+        return start
+    }
+
+    // Move backward from `end` until whitespace boundary, but never before `notBefore`.
+    private func snapBackward(in text: String, from end: String.Index, notBefore limit: String.Index) -> String.Index {
+        if end == text.endIndex { return end }
+        var idx = end
+        while idx > limit {
+            let prev = text.index(before: idx)
+            if text[prev].isWhitespace || text[prev].isNewline {
+                return idx
+            }
+            idx = prev
+        }
+        return end
     }
     
     // MARK: - Replace Selected Text
