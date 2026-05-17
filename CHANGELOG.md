@@ -5,6 +5,22 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.11](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.10...v0.0.11) (2026-05-17)
+
+
+### Features
+
+* **context:** AX surrounding-window context + global context UI ([cbbd8b6](https://github.com/tasszz2k/GrammarPolice/commit/cbbd8b6470f3dbc3a10631801414f019df4a26cb))
+* **llm:** gpt-5 / reasoning model support, cost UI, settings infra ([15eb863](https://github.com/tasszz2k/GrammarPolice/commit/15eb86345c4393bf51da9e27066d516e1df0f4c4))
+* **masking:** defensive fuzzy unmask + allow same-month auto-export ([e946f81](https://github.com/tasszz2k/GrammarPolice/commit/e946f81d6dd426992066b79b7032a76ebe5867de))
+* **modes:** grammar+translate explore, TTS, in-app toast, history detail ([7048abd](https://github.com/tasszz2k/GrammarPolice/commit/7048abd5cc9b16417585f5fbe58083d7ef5fa54e))
+* **usage:** monthly OpenAI cost tracker ([9a06f26](https://github.com/tasszz2k/GrammarPolice/commit/9a06f26592e5df9ee76785950dcec0637254b110))
+
+
+### Bug Fixes
+
+* **clipboard:** fall back to prior clipboard text when Cmd+C fails ([ce1cb19](https://github.com/tasszz2k/GrammarPolice/commit/ce1cb19ca9816866d91054449a7296d03c2199cb))
+
 ## [0.0.10](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.9...v0.0.10) (2026-04-27)
 
 
