@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.15](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.14...v0.0.15) (2026-05-17)
+
+
+### Bug Fixes
+
+* **hotkey:** debounce auto-repeat + wait for modifier release before Cmd+C ([519f5eb](https://github.com/tasszz2k/GrammarPolice/commit/519f5eb1a46f666a5c8e847b600388cb4c994078))
+
 ## [0.0.14](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.13...v0.0.14) (2026-05-17)
 
 
