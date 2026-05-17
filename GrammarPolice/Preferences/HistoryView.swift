@@ -327,7 +327,7 @@ struct HistoryDetailView: View {
                     )
 
                     if !entry.exploreContent.isEmpty {
-                        detailSection(title: "Explore", body: entry.exploreContent)
+                        detailSection(title: "Explore", body: MaskingService.scrubOrphanTokens(in: entry.exploreContent))
                     }
 
                     metadataSection
