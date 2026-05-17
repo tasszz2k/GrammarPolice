@@ -110,6 +110,38 @@ final class SettingsManager: ObservableObject {
             saveSettings()
         }
     }
+
+    var contextWindowChars: Int {
+        get { settings.contextWindowChars }
+        set {
+            settings.contextWindowChars = newValue
+            saveSettings()
+        }
+    }
+
+    var globalContext: String {
+        get { settings.globalContext }
+        set {
+            settings.globalContext = newValue
+            saveSettings()
+        }
+    }
+
+    var grammarExploreEnabled: Bool {
+        get { settings.grammarExploreEnabled }
+        set {
+            settings.grammarExploreEnabled = newValue
+            saveSettings()
+        }
+    }
+
+    var notificationDurationSec: Double {
+        get { settings.notificationDurationSec }
+        set {
+            settings.notificationDurationSec = newValue
+            saveSettings()
+        }
+    }
     
     // MARK: - Translation Settings
     
@@ -117,6 +149,14 @@ final class SettingsManager: ObservableObject {
         get { settings.targetLanguage }
         set {
             settings.targetLanguage = newValue
+            saveSettings()
+        }
+    }
+
+    var translationMode: TranslationMode {
+        get { settings.translationMode }
+        set {
+            settings.translationMode = newValue
             saveSettings()
         }
     }
@@ -159,6 +199,14 @@ final class SettingsManager: ObservableObject {
         get { settings.timeout }
         set {
             settings.timeout = newValue
+            saveSettings()
+        }
+    }
+
+    var monthlyCostCapUSD: Double {
+        get { settings.monthlyCostCapUSD }
+        set {
+            settings.monthlyCostCapUSD = newValue
             saveSettings()
         }
     }
@@ -286,9 +334,9 @@ final class SettingsManager: ObservableObject {
     // MARK: - Prompt Generation
     
     func getGrammarPrompt(for maskedText: String, context: String? = nil) -> (system: String, user: String) {
-        let systemPrompt: String
+        var systemPrompt: String
         let userPromptTemplate: String
-        
+
         switch grammarMode {
         case .minimal:
             systemPrompt = grammarMode.systemPrompt
@@ -303,7 +351,9 @@ final class SettingsManager: ObservableObject {
             systemPrompt = customSystemPrompt
             userPromptTemplate = customUserPrompt
         }
-        
+
+        systemPrompt = injectGlobalContext(into: systemPrompt)
+
         let userPrompt: String
         if let ctx = context, !ctx.isEmpty, ctx != maskedText {
             userPrompt = "\(userPromptTemplate)\n\nText to correct:\n\(maskedText)\n\nSurrounding context (for reference only, do not include in output):\n\(ctx)"
@@ -312,10 +362,20 @@ final class SettingsManager: ObservableObject {
         }
         return (systemPrompt, userPrompt)
     }
-    
+
     func getTranslationPrompt(for maskedText: String, context: String? = nil) -> (system: String, user: String) {
-        let systemPrompt = "You are a translation assistant that can translate from any language."
-        let userPromptTemplate = "Detect the source language and translate the following text into \(targetLanguage). Preserve named entities and tokens like __CWORD_n__ unchanged. Return only the translated text, no quotes, no commentary."
+        switch translationMode {
+        case .simple:
+            return buildSimpleTranslationPrompt(for: maskedText, context: context)
+        case .explore:
+            return buildExploreTranslationPrompt(for: maskedText, context: context)
+        }
+    }
+
+    private func buildSimpleTranslationPrompt(for maskedText: String, context: String?) -> (system: String, user: String) {
+        var systemPrompt = "You are a translation assistant that can translate from any language."
+        systemPrompt = injectGlobalContext(into: systemPrompt)
+        let userPromptTemplate = "Detect the source language and translate the following text into \(targetLanguage). Preserve named entities, and copy any placeholder tokens matching the pattern __CWORD_<digits>__ (for example __CWORD_0__, __CWORD_1__) verbatim with their digits intact. Return only the translated text, no quotes, no commentary."
         let userPrompt: String
         if let ctx = context, !ctx.isEmpty, ctx != maskedText {
             userPrompt = "\(userPromptTemplate)\n\nText to translate:\n\(maskedText)\n\nSurrounding context (for reference only, do not include in output):\n\(ctx)"
@@ -323,6 +383,102 @@ final class SettingsManager: ObservableObject {
             userPrompt = "\(userPromptTemplate)\n\n\(maskedText)"
         }
         return (systemPrompt, userPrompt)
+    }
+
+    private func buildExploreTranslationPrompt(for maskedText: String, context: String?) -> (system: String, user: String) {
+        var systemPrompt = """
+        You are a bilingual language tutor helping a learner of \(targetLanguage).
+        The user gives a single word, phrase, idiom, or short sentence in the source language.
+
+        Output MUST be split into TWO blocks separated by a line containing EXACTLY:
+        ---EXPLORE---
+
+        BLOCK 1 (before the separator): the plain translation into \(targetLanguage) only. No labels, no part of speech, no IPA, no extra commentary. One short line for a word or phrase; a full clean translation for a sentence.
+
+        BLOCK 2 (after the separator): a compact "explore" entry that teaches the item.
+        Output rules for block 2:
+        - Plain text only. No markdown code fences. No surrounding quotes.
+        - Include only the sections that apply. Skip the rest entirely (do not write empty labels).
+        - Keep it dense: every line carries weight. No filler restatements.
+        - Use the surrounding context (if given) to choose the sense that fits. Do NOT echo the context.
+        - Copy any placeholder tokens matching __CWORD_<digits>__ verbatim.
+
+        Section order for block 2, when applicable:
+        1. Headword line: <original> - <part_of_speech> · /<IPA or romanization if helpful>/ · <register if non-neutral>
+        2. Meaning: numbered senses "1. <\(targetLanguage) gloss> - <short English gloss>"
+        3. Examples: 1-2 natural example sentences in the source language. Under each, the \(targetLanguage) translation prefixed with "-> ".
+        4. Word family: derived forms with POS tags, e.g. "supersede (v), supersession (n), superseded (adj)".
+        5. Collocations: 3-5 common collocations.
+        6. Synonyms: comma-separated, source language.
+        7. Antonyms: comma-separated, source language (only if meaningful).
+        8. Contrast: one short note distinguishing the headword from its closest near-synonym.
+        9. Note: register, formality, false-friend warning, or domain (only if non-obvious).
+
+        When the input is a full sentence rather than a vocabulary item, block 2 contains 1-3 short notes on idioms, tricky grammar, or notable vocabulary (NOT a repeat of the translation).
+
+        Always emit both blocks and the separator, even if block 2 is short.
+        """
+        systemPrompt = injectGlobalContext(into: systemPrompt)
+
+        let userPromptTemplate = "Explore the following text and produce the two-block output. Target language: \(targetLanguage)."
+        let userPrompt: String
+        if let ctx = context, !ctx.isEmpty, ctx != maskedText {
+            userPrompt = "\(userPromptTemplate)\n\nText:\n\(maskedText)\n\nSurrounding context (for sense disambiguation only, do not include in output):\n\(ctx)"
+        } else {
+            userPrompt = "\(userPromptTemplate)\n\nText:\n\(maskedText)"
+        }
+        return (systemPrompt, userPrompt)
+    }
+
+    static let exploreSeparator = "---EXPLORE---"
+
+    func getGrammarExplorePrompt(for maskedText: String, context: String? = nil) -> (system: String, user: String) {
+        var systemPrompt = """
+        You are an English writing coach helping a learner improve. Given a passage, return BOTH the corrected version and a structured lesson.
+
+        Output MUST be split into TWO blocks separated by a line containing EXACTLY:
+        \(Self.exploreSeparator)
+
+        BLOCK 1 (before the separator): the corrected text only. Apply only the corrections you would normally make in the current grammar mode. Preserve meaning, voice, and structure. Copy any placeholder tokens matching __CWORD_<digits>__ verbatim. No commentary, no labels, no surrounding quotes.
+
+        BLOCK 2 (after the separator): a compact lesson, plain text, no markdown fences. Use these section labels exactly, in order, and include only the sections that apply:
+
+        Fixes:
+        - For each correction: "<original phrase>" -> "<corrected phrase>" - <one-line reason>
+        - One bullet per fix. Quote the exact substrings, not whole sentences.
+        - If there are no corrections, write a single bullet "No changes needed - the text is already correct."
+
+        Word notes:
+        - Misused / weak word choices that were swapped, with a 1-line explanation per word. Skip if none.
+
+        Rules applied:
+        - Concise list of the grammar rules that drove the fixes (e.g. "subject-verb agreement", "article use with countable nouns"). 1-5 items.
+
+        Lesson:
+        - 2-4 sentence learner-facing takeaway. Focus on the underlying pattern, not the specific text. Reference one or two of the rules above so the learner can recognize this mistake next time.
+
+        Keep it dense. No filler. No restating the input. Always emit both blocks and the separator.
+        """
+        systemPrompt = injectGlobalContext(into: systemPrompt)
+
+        let userPromptTemplate = "Correct the following text and produce the two-block output."
+        let userPrompt: String
+        if let ctx = context, !ctx.isEmpty, ctx != maskedText {
+            userPrompt = "\(userPromptTemplate)\n\nText to correct:\n\(maskedText)\n\nSurrounding context (for reference only, do not include in output):\n\(ctx)"
+        } else {
+            userPrompt = "\(userPromptTemplate)\n\nText:\n\(maskedText)"
+        }
+        return (systemPrompt, userPrompt)
+    }
+
+    private func injectGlobalContext(into systemPrompt: String) -> String {
+        let ctx = globalContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ctx.isEmpty else { return systemPrompt }
+        let block = "User-provided context (apply when interpreting tone, terminology, and intent; do not echo this context in your output):\n\(ctx)"
+        if systemPrompt.isEmpty {
+            return block
+        }
+        return "\(systemPrompt)\n\n\(block)"
     }
     
     // MARK: - Launch at Login

@@ -57,6 +57,13 @@ enum LLMBackend: String, Codable, CaseIterable {
     case localLLM = "Local LLM"
 }
 
+// MARK: - Translation Mode
+
+enum TranslationMode: String, Codable, CaseIterable {
+    case simple = "Simple"
+    case explore = "Explore"
+}
+
 // MARK: - Local LLM Mode
 
 enum LocalLLMMode: String, Codable, CaseIterable {
@@ -120,16 +127,22 @@ struct AppSettings: Codable {
     var customSystemPrompt: String = ""
     var customUserPrompt: String = ""
     var outputFormat: OutputFormat = .original
+    var contextWindowChars: Int = 400
+    var globalContext: String = ""
+    var grammarExploreEnabled: Bool = false
+    var notificationDurationSec: Double = 5.0
     
     // Translation
     var targetLanguage: String = "Vietnamese"
+    var translationMode: TranslationMode = .simple
     
     // LLM
     var llmBackend: LLMBackend = .openAI
-    var openAIModel: String = "gpt-4o-mini"
-    var temperature: Double = 0.0
-    var maxTokens: Int = 300
-    var timeout: TimeInterval = 30.0
+    var openAIModel: String = "gpt-5-mini"
+    var temperature: Double = 0.2
+    var maxTokens: Int = 500
+    var timeout: TimeInterval = 60.0
+    var monthlyCostCapUSD: Double = 10.0
     
     // Local LLM
     var localLLMMode: LocalLLMMode = .http

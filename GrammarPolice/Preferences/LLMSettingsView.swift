@@ -8,10 +8,11 @@
 import SwiftUI
 
 struct LLMSettingsView: View {
-    private let presetModels = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+    private let presetModels = ["gpt-5-mini", "gpt-5-nano", "gpt-5", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
     
     @ObservedObject private var settings = SettingsManager.shared
-    
+    @ObservedObject private var usage = UsageTracker.shared
+
     @State private var apiKey = ""
     @State private var customModelName = ""
     @State private var hasAPIKey = false
@@ -161,8 +162,51 @@ struct LLMSettingsView: View {
                 } header: {
                     Text("OpenAI Configuration")
                 }
+
+                Section {
+                    let cap = settings.monthlyCostCapUSD
+                    let spent = usage.monthlySpendUSD
+                    let fraction = usage.progressFraction(cap: cap)
+                    let over = usage.isOverCap(cap)
+
+                    HStack {
+                        Text(usage.periodKey)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(String(format: "$%.4f / $%.2f", spent, cap))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(over ? .red : .primary)
+                    }
+
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                        .tint(over ? .red : (fraction > 0.8 ? .orange : .accentColor))
+
+                    HStack {
+                        Stepper(
+                            String(format: "Monthly Cap: $%.2f", cap),
+                            value: Binding(
+                                get: { settings.monthlyCostCapUSD },
+                                set: { settings.monthlyCostCapUSD = $0 }
+                            ),
+                            in: 0...1000,
+                            step: 1
+                        )
+                        Spacer()
+                        Button("Reset") {
+                            usage.resetMonth()
+                        }
+                    }
+
+                    Text("Soft cap. Calls are not blocked when exceeded; bar turns red.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } header: {
+                    Text("Monthly Usage")
+                }
             }
-            
+
             if settings.llmBackend == .localLLM {
                 Section {
                     Picker("Mode:", selection: Binding(

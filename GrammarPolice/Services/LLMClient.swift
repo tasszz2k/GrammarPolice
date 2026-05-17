@@ -47,11 +47,8 @@ struct ChatMessage: Codable {
     let content: String
 }
 
-struct ChatCompletionRequest: Codable {
-    let model: String
-    let messages: [ChatMessage]
-    let temperature: Double
-    let max_tokens: Int
+private func isReasoningModel(_ model: String) -> Bool {
+    return model.hasPrefix("gpt-5") || model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
 }
 
 struct ChatCompletionResponse: Codable {
@@ -102,23 +99,39 @@ final class LLMClient {
     
     func correctGrammar(_ text: String, context: String? = nil) async throws -> (result: String, latencyMs: Int) {
         try checkPrerequisites(textLength: text.count)
-        
+
         let prompts = SettingsManager.shared.getGrammarPrompt(for: text, context: context)
         return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user)
     }
-    
-    // MARK: - Translation
-    
-    func translate(_ text: String, context: String? = nil) async throws -> (result: String, latencyMs: Int) {
+
+    func correctGrammarExplore(_ text: String, context: String? = nil) async throws -> (result: String, latencyMs: Int) {
         try checkPrerequisites(textLength: text.count)
-        
-        let prompts = SettingsManager.shared.getTranslationPrompt(for: text, context: context)
-        return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user)
+
+        let prompts = SettingsManager.shared.getGrammarExplorePrompt(for: text, context: context)
+        // Explore output (corrected + multi-section lesson) needs more output
+        // tokens than baseline grammar correction.
+        let override = max(SettingsManager.shared.maxTokens, 1500)
+        return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user, maxTokensOverride: override)
     }
     
+    // MARK: - Translation
+
+    func translate(_ text: String, context: String? = nil) async throws -> (result: String, latencyMs: Int) {
+        try checkPrerequisites(textLength: text.count)
+
+        let prompts = SettingsManager.shared.getTranslationPrompt(for: text, context: context)
+        // Explore mode produces a multi-section learner entry; baseline max_tokens
+        // (e.g. 500) routinely truncates the output. Lift the ceiling for this
+        // path while leaving the user-configured setting untouched.
+        let override: Int? = SettingsManager.shared.translationMode == .explore
+            ? max(SettingsManager.shared.maxTokens, 1500)
+            : nil
+        return try await sendRequest(systemPrompt: prompts.system, userPrompt: prompts.user, maxTokensOverride: override)
+    }
+
     // MARK: - Generic Request
-    
-    private func sendRequest(systemPrompt: String, userPrompt: String) async throws -> (result: String, latencyMs: Int) {
+
+    private func sendRequest(systemPrompt: String, userPrompt: String, maxTokensOverride: Int? = nil) async throws -> (result: String, latencyMs: Int) {
         guard let apiKey = KeychainService.shared.openAIAPIKey, !apiKey.isEmpty else {
             throw LLMError.noAPIKey
         }
@@ -127,26 +140,37 @@ final class LLMClient {
             throw LLMError.invalidURL
         }
         
-        let messages = [
-            ChatMessage(role: "system", content: systemPrompt),
-            ChatMessage(role: "user", content: userPrompt)
+        let model = SettingsManager.shared.openAIModel
+        let messages: [[String: String]] = [
+            ["role": "system", "content": systemPrompt],
+            ["role": "user", "content": userPrompt]
         ]
-        
-        let requestBody = ChatCompletionRequest(
-            model: SettingsManager.shared.openAIModel,
-            messages: messages,
-            temperature: SettingsManager.shared.temperature,
-            max_tokens: SettingsManager.shared.maxTokens
-        )
-        
+
+        var body: [String: Any] = [
+            "model": model,
+            "messages": messages
+        ]
+
+        let effectiveMaxTokens = maxTokensOverride ?? SettingsManager.shared.maxTokens
+        if isReasoningModel(model) {
+            // Reasoning models: use max_completion_tokens, omit temperature
+            // (only default 1.0 is accepted), and request minimal reasoning to
+            // keep latency + hidden reasoning token cost low for short text edits.
+            body["max_completion_tokens"] = effectiveMaxTokens
+            body["reasoning_effort"] = "minimal"
+        } else {
+            body["max_tokens"] = effectiveMaxTokens
+            body["temperature"] = SettingsManager.shared.temperature
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = SettingsManager.shared.timeout
-        
+
         do {
-            request.httpBody = try JSONEncoder().encode(requestBody)
+            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
         } catch {
             throw LLMError.networkError(error)
         }
@@ -182,9 +206,17 @@ final class LLMClient {
             }
             
             let completionResponse = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-            
+
             guard let firstChoice = completionResponse.choices.first else {
                 throw LLMError.invalidResponse
+            }
+
+            if let usage = completionResponse.usage {
+                UsageTracker.shared.record(
+                    model: SettingsManager.shared.openAIModel,
+                    promptTokens: usage.prompt_tokens,
+                    completionTokens: usage.completion_tokens
+                )
             }
             
             var result = firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
