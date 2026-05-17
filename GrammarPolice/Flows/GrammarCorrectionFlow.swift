@@ -180,6 +180,9 @@ final class GrammarCorrectionFlow {
             correctedMasked = rawOutput
         }
         let correctedText = maskingService.unmaskTokens(in: correctedMasked, using: maskResult.mapping, orderedFallback: maskResult.orderedOriginals)
+        if !exploreContent.isEmpty {
+            exploreContent = maskingService.unmaskTokens(in: exploreContent, using: maskResult.mapping, orderedFallback: maskResult.orderedOriginals)
+        }
 
         // Step 6: Dispatch to UI.
         // Explore mode: do NOT auto-replace selection. Show dialog, copy to clipboard.
