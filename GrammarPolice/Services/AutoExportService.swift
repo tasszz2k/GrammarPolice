@@ -125,13 +125,7 @@ final class AutoExportService {
         let monthString = String(format: "%04d_%02d", year, month)
         let filename = "\(prefix)_\(monthString).json"
         let fileURL = URL(fileURLWithPath: folderPath).appendingPathComponent(filename)
-        
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            LoggingService.shared.log("Auto-export file already exists: \(filename), skipping", level: .warning)
-            SettingsManager.shared.lastAutoExportDate = Date()
-            return
-        }
-        
+
         let folderURL = URL(fileURLWithPath: folderPath)
         if !FileManager.default.fileExists(atPath: folderURL.path) {
             do {
