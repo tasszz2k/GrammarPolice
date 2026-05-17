@@ -75,11 +75,20 @@ final class TranslationFlow {
             }
         }
         
+        // Recover surrounding context via AX even after clipboard fallback,
+        // when the focused element exposes its full text via AXValue.
+        if usedClipboardFallback, surroundingContext == nil,
+           let text = selectedText, !text.isEmpty,
+           let fullText = axService.getFocusedElementFullText() {
+            let window = SettingsManager.shared.contextWindowChars
+            surroundingContext = axService.contextWindow(around: text, fullText: fullText, window: window)
+        }
+
         // Immediately restore clipboard if we used fallback (translation should not modify clipboard)
         if usedClipboardFallback {
             clipboardService.restoreClipboardState()
         }
-        
+
         guard let text = selectedText, !text.isEmpty else {
             notificationService.showNoTextSelected()
             LoggingService.shared.log("No text selected for translation", level: .warning)
@@ -142,22 +151,57 @@ final class TranslationFlow {
         }
         
         // Step 5: Unmask tokens
-        let translatedText = maskingService.unmaskTokens(in: translatedMasked, using: maskResult.mapping)
-        
-        // Step 6: Show translation in dialog (does not modify clipboard)
-        notificationService.showTranslationDialog(translatedText: translatedText, targetLanguage: targetLanguage)
+        let translatedText = maskingService.unmaskTokens(in: translatedMasked, using: maskResult.mapping, orderedFallback: maskResult.orderedOriginals)
+
+        // Step 6: Show translation in dialog (does not modify clipboard).
+        // Explore mode returns two blocks separated by the explore separator;
+        // split them into simple translation + extended learner entry.
+        if SettingsManager.shared.translationMode == .explore {
+            let parts = translatedText.components(separatedBy: SettingsManager.exploreSeparator)
+            if parts.count >= 2 {
+                let simple = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let extended = parts.dropFirst().joined(separator: SettingsManager.exploreSeparator)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                notificationService.showTranslationExploreDialog(
+                    original: text,
+                    simple: simple,
+                    extended: extended,
+                    targetLanguage: targetLanguage
+                )
+            } else {
+                // Model failed to emit the separator; show as a single block.
+                notificationService.showTranslationDialog(translatedText: translatedText, targetLanguage: targetLanguage)
+            }
+        } else {
+            notificationService.showTranslationDialog(translatedText: translatedText, targetLanguage: targetLanguage)
+        }
         LoggingService.shared.log("Translation complete, shown in dialog", level: .debug)
         
-        // Step 7: Save to history
+        // Step 7: Save to history. In explore mode the LLM emits two blocks
+        // (translation + extended entry); split so history persists them
+        // separately: `output` holds the plain translation, `exploreContent`
+        // holds the rich entry.
+        var historyOutput = translatedText
+        var historyExplore = ""
+        if SettingsManager.shared.translationMode == .explore {
+            let parts = translatedText.components(separatedBy: SettingsManager.exploreSeparator)
+            if parts.count >= 2 {
+                historyOutput = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                historyExplore = parts.dropFirst().joined(separator: SettingsManager.exploreSeparator)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
         saveHistory(
             input: text,
-            output: translatedText,
+            output: historyOutput,
             appBundle: appBundle,
             appName: appName,
             success: true,
             customWordsUsed: maskResult.tokensUsed,
             targetLanguage: targetLanguage,
-            latencyMs: latencyMs
+            latencyMs: latencyMs,
+            exploreContent: historyExplore
         )
         
         let totalTime = Int(Date().timeIntervalSince(startTime) * 1000)
@@ -198,7 +242,8 @@ final class TranslationFlow {
         success: Bool,
         customWordsUsed: [String],
         targetLanguage: String,
-        latencyMs: Int
+        latencyMs: Int,
+        exploreContent: String = ""
     ) {
         let store = HistoryStore(modelContext: modelContext)
         store.addEntry(
@@ -213,7 +258,8 @@ final class TranslationFlow {
             sourceLanguage: "auto",  // Could detect source language
             targetLanguage: targetLanguage,
             llmBackend: SettingsManager.shared.llmBackend.rawValue,
-            llmLatencyMs: latencyMs
+            llmLatencyMs: latencyMs,
+            exploreContent: exploreContent
         )
     }
 }

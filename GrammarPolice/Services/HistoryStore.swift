@@ -42,7 +42,8 @@ final class HistoryStore {
         sourceLanguage: String = "en",
         targetLanguage: String = "",
         llmBackend: String,
-        llmLatencyMs: Int
+        llmLatencyMs: Int,
+        exploreContent: String = ""
     ) {
         let entry = HistoryEntry(
             input: input,
@@ -56,9 +57,10 @@ final class HistoryStore {
             sourceLanguage: sourceLanguage,
             targetLanguage: targetLanguage,
             llmBackend: llmBackend,
-            llmLatencyMs: llmLatencyMs
+            llmLatencyMs: llmLatencyMs,
+            exploreContent: exploreContent
         )
-        
+
         addEntry(entry)
     }
     

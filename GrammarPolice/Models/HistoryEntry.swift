@@ -29,7 +29,8 @@ final class HistoryEntry {
     var targetLanguage: String
     var llmBackend: String
     var llmLatencyMs: Int
-    
+    var exploreContent: String = ""
+
     init(
         id: UUID = UUID(),
         input: String,
@@ -44,7 +45,8 @@ final class HistoryEntry {
         sourceLanguage: String = "en",
         targetLanguage: String = "",
         llmBackend: String = "OpenAI",
-        llmLatencyMs: Int = 0
+        llmLatencyMs: Int = 0,
+        exploreContent: String = ""
     ) {
         self.id = id
         self.input = input
@@ -60,6 +62,7 @@ final class HistoryEntry {
         self.targetLanguage = targetLanguage
         self.llmBackend = llmBackend
         self.llmLatencyMs = llmLatencyMs
+        self.exploreContent = exploreContent
     }
     
     var historyMode: HistoryMode {
@@ -112,7 +115,8 @@ final class HistoryEntry {
             "replacement_done": replacementDone,
             "success": success,
             "llm_backend": llmBackend,
-            "llm_latency_ms": llmLatencyMs
+            "llm_latency_ms": llmLatencyMs,
+            "explore_content": exploreContent
         ]
     }
     

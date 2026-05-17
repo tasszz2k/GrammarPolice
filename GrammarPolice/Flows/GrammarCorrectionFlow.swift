@@ -78,7 +78,22 @@ final class GrammarCorrectionFlow {
                 surroundingContext = nil
             }
         }
-        
+
+        // If we fell back to the clipboard, the AX path didn't produce
+        // surrounding context. Try once more to fetch the focused element's
+        // full text via AX and slice a window around the captured selection.
+        // This still helps for apps that expose AXValue even when selection
+        // capture is unreliable (e.g. browsers, some Electron text inputs).
+        if usedFallback, surroundingContext == nil,
+           let text = selectedText, !text.isEmpty,
+           let fullText = axService.getFocusedElementFullText() {
+            let window = SettingsManager.shared.contextWindowChars
+            surroundingContext = axService.contextWindow(around: text, fullText: fullText, window: window)
+            if let ctx = surroundingContext {
+                LoggingService.shared.log("Recovered context via AX full text after clipboard fallback, length: \(ctx.count)", level: .debug)
+            }
+        }
+
         guard let text = selectedText, !text.isEmpty else {
             notificationService.showNoTextSelected()
             LoggingService.shared.log("No text selected", level: .warning)
@@ -101,22 +116,29 @@ final class GrammarCorrectionFlow {
             maskedTokensCount: maskResult.mapping.count
         )
         
+        let exploreMode = SettingsManager.shared.grammarExploreEnabled
+
         // Step 4: Send to LLM
-        var correctedMasked: String
+        var rawOutput: String
         var latencyMs: Int
-        
+
         do {
             let result: (result: String, latencyMs: Int)
-            
+
             if SettingsManager.shared.llmBackend == .openAI {
-                result = try await LLMClient.shared.correctGrammar(maskResult.maskedText, context: surroundingContext)
+                if exploreMode {
+                    result = try await LLMClient.shared.correctGrammarExplore(maskResult.maskedText, context: surroundingContext)
+                } else {
+                    result = try await LLMClient.shared.correctGrammar(maskResult.maskedText, context: surroundingContext)
+                }
             } else {
+                // Local LLM does not yet support explore; fall back to plain.
                 result = try await LocalLLMRunner.shared.correctGrammar(maskResult.maskedText, context: surroundingContext)
             }
-            
-            correctedMasked = result.result
+
+            rawOutput = result.result
             latencyMs = result.latencyMs
-            
+
         } catch LLMError.privacyConsentRequired {
             notificationService.showPrivacyConsentRequired()
             return
@@ -134,55 +156,68 @@ final class GrammarCorrectionFlow {
                 success: false,
                 replacementDone: false,
                 customWordsUsed: maskResult.tokensUsed,
-                latencyMs: 0
+                latencyMs: 0,
+                exploreContent: ""
             )
             return
         }
-        
-        // Step 5: Unmask tokens
-        let correctedText = maskingService.unmaskTokens(in: correctedMasked, using: maskResult.mapping)
-        
-        // Step 6: Replace text
-        var replacementDone = false
-        
-        // Only try AX replacement if we didn't use fallback and AX replacement is likely to work
-        if !usedFallback && axService.canReplaceText() {
-            do {
-                try axService.replaceSelectedText(with: correctedText)
-                replacementDone = true
-                notificationService.showGrammarCorrectionSuccess(preview: correctedText)
-                LoggingService.shared.logReplacement(success: true, method: "AX")
-            } catch {
-                LoggingService.shared.log("AX replacement failed: \(error)", level: .debug)
+
+        // Step 5: Split + unmask
+        var exploreContent = ""
+        let correctedMasked: String
+        if exploreMode {
+            let parts = rawOutput.components(separatedBy: SettingsManager.exploreSeparator)
+            if parts.count >= 2 {
+                correctedMasked = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                exploreContent = parts.dropFirst().joined(separator: SettingsManager.exploreSeparator)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                // No separator: treat full output as corrected text, no lesson.
+                correctedMasked = rawOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+                exploreContent = ""
             }
+        } else {
+            correctedMasked = rawOutput
         }
-        
-        // If AX replacement failed or wasn't attempted, use clipboard + paste
-        if !replacementDone {
+        let correctedText = maskingService.unmaskTokens(in: correctedMasked, using: maskResult.mapping, orderedFallback: maskResult.orderedOriginals)
+
+        // Step 6: Dispatch to UI.
+        // Explore mode: do NOT auto-replace selection. Show dialog, copy to clipboard.
+        // Normal mode: auto-replace (AX or clipboard+paste) then toast.
+        var replacementDone = false
+        if exploreMode {
             clipboardService.setText(correctedText)
-            
-            // Small delay to ensure clipboard is ready
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-            
-            // Simulate paste to insert the text
-            clipboardService.simulatePaste()
-            replacementDone = true
-            
-            // Wait for paste to complete before restoring clipboard
-            try? await Task.sleep(nanoseconds: 200_000_000) // 200ms for paste to complete
-            
-            notificationService.showGrammarCorrectionSuccess(preview: correctedText)
-            LoggingService.shared.logReplacement(success: true, method: "Clipboard+Paste")
+            notificationService.showGrammarExploreDialog(
+                original: text,
+                corrected: correctedText,
+                lesson: exploreContent.isEmpty ? "(no lesson returned)" : exploreContent
+            )
+        } else {
+            if !usedFallback && axService.canReplaceText() {
+                do {
+                    try axService.replaceSelectedText(with: correctedText)
+                    replacementDone = true
+                    notificationService.showGrammarCorrectionSuccess(preview: correctedText)
+                    LoggingService.shared.logReplacement(success: true, method: "AX")
+                } catch {
+                    LoggingService.shared.log("AX replacement failed: \(error)", level: .debug)
+                }
+            }
+
+            if !replacementDone {
+                clipboardService.setText(correctedText)
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                clipboardService.simulatePaste()
+                replacementDone = true
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                notificationService.showGrammarCorrectionSuccess(preview: correctedText)
+                LoggingService.shared.logReplacement(success: true, method: "Clipboard+Paste")
+            }
+
+            // Always set corrected text to clipboard for grammar mode (user can paste it again if needed)
+            clipboardService.setText(correctedText)
         }
-        
-        // Ensure corrected text is in clipboard (for grammar mode, always keep corrected text in clipboard)
-        if !replacementDone || usedFallback {
-            // If we used clipboard+paste, corrected text is already in clipboard
-            // If we used AX replacement, also put corrected text in clipboard for convenience
-        }
-        // Always set corrected text to clipboard for grammar mode (user can paste it again if needed)
-        clipboardService.setText(correctedText)
-        
+
         // Step 7: Save to history
         saveHistory(
             input: text,
@@ -192,11 +227,12 @@ final class GrammarCorrectionFlow {
             success: true,
             replacementDone: replacementDone,
             customWordsUsed: maskResult.tokensUsed,
-            latencyMs: latencyMs
+            latencyMs: latencyMs,
+            exploreContent: exploreContent
         )
-        
+
         let totalTime = Int(Date().timeIntervalSince(startTime) * 1000)
-        LoggingService.shared.log("Grammar correction completed in \(totalTime)ms", level: .info)
+        LoggingService.shared.log("Grammar correction completed in \(totalTime)ms (explore=\(exploreMode))", level: .info)
     }
     
     private func isLLMConfigured() -> Bool {
@@ -233,7 +269,8 @@ final class GrammarCorrectionFlow {
         success: Bool,
         replacementDone: Bool,
         customWordsUsed: [String],
-        latencyMs: Int
+        latencyMs: Int,
+        exploreContent: String
     ) {
         let store = HistoryStore(modelContext: modelContext)
         store.addEntry(
@@ -248,7 +285,8 @@ final class GrammarCorrectionFlow {
             sourceLanguage: "en",
             targetLanguage: "",
             llmBackend: SettingsManager.shared.llmBackend.rawValue,
-            llmLatencyMs: latencyMs
+            llmLatencyMs: latencyMs,
+            exploreContent: exploreContent
         )
     }
 }

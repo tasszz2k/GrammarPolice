@@ -18,6 +18,7 @@ struct HistoryView: View {
     @State private var filterMode: HistoryMode?
     @State private var showingPurgeAlert = false
     @State private var purgeDays = 30
+    @State private var detailEntry: HistoryEntry?
     
     var filteredEntries: [HistoryEntry] {
         var result = entries
@@ -112,6 +113,10 @@ struct HistoryView: View {
                     ForEach(filteredEntries) { entry in
                         HistoryEntryRow(entry: entry)
                             .tag(entry.id)
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                detailEntry = entry
+                            }
                     }
                     .onDelete(perform: deleteEntries)
                 }
@@ -133,6 +138,11 @@ struct HistoryView: View {
                 Spacer()
             }
             .padding()
+        }
+        .sheet(item: $detailEntry) { entry in
+            HistoryDetailView(entry: entry) {
+                detailEntry = nil
+            }
         }
         .alert("Purge History", isPresented: $showingPurgeAlert) {
             TextField("Days", value: $purgeDays, format: .number)
@@ -251,16 +261,135 @@ struct HistoryEntryRow: View {
                 }
             }
             
-            Text(entry.input)
+            Text(MaskingService.scrubOrphanTokens(in: entry.input))
                 .font(.body)
                 .lineLimit(1)
-            
-            Text(entry.output)
+
+            Text(MaskingService.scrubOrphanTokens(in: entry.output))
                 .font(.body)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
+
+            if !entry.exploreContent.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "book")
+                        .font(.caption2)
+                    Text("Explore")
+                        .font(.caption2)
+                }
+                .foregroundColor(.accentColor)
+            }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - History Detail View
+
+struct HistoryDetailView: View {
+    let entry: HistoryEntry
+    let onClose: () -> Void
+
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        return formatter
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Image(systemName: entry.mode == "grammar" ? "text.badge.checkmark" : "globe")
+                    .foregroundColor(entry.mode == "grammar" ? .blue : .green)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.mode == "grammar" ? "Grammar Correction" : "Translation")
+                        .font(.headline)
+                    Text("\(entry.appName) · \(dateFormatter.string(from: entry.timestamp))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button("Close") { onClose() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    detailSection(title: "Input", body: MaskingService.scrubOrphanTokens(in: entry.input))
+                    detailSection(
+                        title: entry.mode == "grammar" ? "Corrected" : "Translation",
+                        body: MaskingService.scrubOrphanTokens(in: entry.output)
+                    )
+
+                    if !entry.exploreContent.isEmpty {
+                        detailSection(title: "Explore", body: entry.exploreContent)
+                    }
+
+                    metadataSection
+                }
+                .padding()
+            }
+        }
+        .frame(width: 640, height: 560)
+    }
+
+    private func detailSection(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline)
+                .bold()
+                .foregroundColor(.secondary)
+            ScrollView {
+                Text(body)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 220)
+            .padding(8)
+            .background(Color.secondary.opacity(0.08))
+            .cornerRadius(6)
+        }
+    }
+
+    private var metadataSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Metadata")
+                .font(.subheadline)
+                .bold()
+                .foregroundColor(.secondary)
+            Group {
+                metaRow("App", value: "\(entry.appName) (\(entry.appBundleIdentifier))")
+                metaRow("Mode", value: entry.mode)
+                if !entry.targetLanguage.isEmpty {
+                    metaRow("Target language", value: entry.targetLanguage)
+                }
+                metaRow("Backend", value: entry.llmBackend)
+                metaRow("Latency", value: "\(entry.llmLatencyMs) ms")
+                metaRow("Replaced", value: entry.replacementDone ? "yes" : "no")
+                metaRow("Success", value: entry.success ? "yes" : "no")
+                if !entry.customWordsUsed.isEmpty {
+                    metaRow("Custom words", value: entry.customWordsUsed.joined(separator: ", "))
+                }
+            }
+            .font(.caption)
+        }
+    }
+
+    private func metaRow(_ key: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(key):")
+                .foregroundColor(.secondary)
+                .frame(width: 120, alignment: .leading)
+            Text(value)
+                .textSelection(.enabled)
+            Spacer()
+        }
     }
 }
 

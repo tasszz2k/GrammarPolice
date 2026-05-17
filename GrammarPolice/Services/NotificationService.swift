@@ -53,18 +53,14 @@ final class NotificationService: NSObject {
     // MARK: - Notifications
     
     func showGrammarCorrectionSuccess(preview: String) {
-        showNotification(
-            title: "Grammar Corrected",
-            body: truncateText(preview, maxLength: 100),
-            identifier: "grammar-success"
-        )
+        ToastService.shared.show(title: "Grammar Corrected", body: preview, style: .success)
     }
-    
+
     func showGrammarCopiedToClipboard(preview: String) {
-        showNotification(
-            title: "Corrected Text Copied",
-            body: truncateText(preview, maxLength: 100) + "\n\nPaste with Cmd+V",
-            identifier: "grammar-clipboard"
+        ToastService.shared.show(
+            title: "Corrected Text Copied (Cmd+V to paste)",
+            body: preview,
+            style: .success
         )
     }
     
@@ -80,30 +76,194 @@ final class NotificationService: NSObject {
     func showTranslationDialog(translatedText: String, targetLanguage: String) {
         let alert = NSAlert()
         alert.messageText = "Translation to \(targetLanguage)"
-        alert.informativeText = translatedText
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
-        
-        // Make the alert text selectable by using an accessory view
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        alert.accessoryView = makeScrollableTextView(content: translatedText, width: 400, height: 200)
+        alert.informativeText = ""
+        alert.runModal()
+    }
+
+    // Strong reference holder so button targets survive while the modal is open.
+    private var activeSpeakHandlers: [SpeakButtonHandler] = []
+
+    @MainActor
+    func showTranslationExploreDialog(original: String, simple: String, extended: String, targetLanguage: String) {
+        let alert = NSAlert()
+        alert.messageText = "Translation to \(targetLanguage)"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+
+        let width: CGFloat = 520
+        let originalHeight: CGFloat = 70
+        let simpleHeight: CGFloat = 60
+        let extendedHeight: CGFloat = 260
+        let labelHeight: CGFloat = 18
+        let gap: CGFloat = 6
+        let totalHeight = labelHeight + originalHeight + gap
+                        + labelHeight + simpleHeight + gap
+                        + labelHeight + extendedHeight
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: totalHeight))
+
+        var y: CGFloat = 0
+
+        // Extended (bottom)
+        let extendedScroll = makeScrollableTextView(content: extended, width: width, height: extendedHeight)
+        extendedScroll.frame = NSRect(x: 0, y: y, width: width, height: extendedHeight)
+        extendedScroll.autoresizingMask = [.width]
+        container.addSubview(extendedScroll)
+        y += extendedHeight
+        let extendedLabel = makeSectionLabel(text: "Extended", width: width, y: y)
+        container.addSubview(extendedLabel)
+        y += labelHeight + gap
+
+        // Translated (middle)
+        let simpleScroll = makeScrollableTextView(content: simple, width: width, height: simpleHeight)
+        simpleScroll.frame = NSRect(x: 0, y: y, width: width, height: simpleHeight)
+        simpleScroll.autoresizingMask = [.width]
+        container.addSubview(simpleScroll)
+        y += simpleHeight
+        let simpleLabel = makeSectionLabel(text: "Translation (\(targetLanguage))", width: width, y: y)
+        container.addSubview(simpleLabel)
+        y += labelHeight + gap
+
+        // Original (top) with Speak button.
+        let speakBtnWidth: CGFloat = 90
+        let originalScroll = makeScrollableTextView(content: original, width: width - speakBtnWidth - gap, height: originalHeight)
+        originalScroll.frame = NSRect(x: 0, y: y, width: width - speakBtnWidth - gap, height: originalHeight)
+        originalScroll.autoresizingMask = [.width]
+        container.addSubview(originalScroll)
+
+        let handler = SpeakButtonHandler(text: original)
+        activeSpeakHandlers.append(handler)
+        let speakButton = NSButton(
+            title: "🔊 Speak",
+            target: handler,
+            action: #selector(SpeakButtonHandler.speak)
+        )
+        speakButton.bezelStyle = .rounded
+        speakButton.frame = NSRect(
+            x: width - speakBtnWidth,
+            y: y + (originalHeight - 28) / 2,
+            width: speakBtnWidth,
+            height: 28
+        )
+        container.addSubview(speakButton)
+
+        y += originalHeight
+        let originalLabel = makeSectionLabel(text: "Original", width: width, y: y)
+        container.addSubview(originalLabel)
+
+        alert.accessoryView = container
+        alert.informativeText = ""
+        alert.runModal()
+
+        // Modal closed: stop playback + release handlers.
+        SpeechService.shared.stop()
+        activeSpeakHandlers.removeAll()
+    }
+
+    @MainActor
+    func showGrammarExploreDialog(original: String, corrected: String, lesson: String) {
+        let alert = NSAlert()
+        alert.messageText = "Grammar Explore"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+
+        let width: CGFloat = 540
+        let originalHeight: CGFloat = 90
+        let correctedHeight: CGFloat = 90
+        let lessonHeight: CGFloat = 260
+        let labelHeight: CGFloat = 18
+        let gap: CGFloat = 6
+        let totalHeight = labelHeight + originalHeight + gap
+                        + labelHeight + correctedHeight + gap
+                        + labelHeight + lessonHeight
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: totalHeight))
+
+        var y: CGFloat = 0
+
+        // Lesson (bottom)
+        let lessonScroll = makeScrollableTextView(content: lesson, width: width, height: lessonHeight)
+        lessonScroll.frame = NSRect(x: 0, y: y, width: width, height: lessonHeight)
+        lessonScroll.autoresizingMask = [.width]
+        container.addSubview(lessonScroll)
+        y += lessonHeight
+        container.addSubview(makeSectionLabel(text: "Lesson", width: width, y: y))
+        y += labelHeight + gap
+
+        // Corrected (middle)
+        let correctedScroll = makeScrollableTextView(content: corrected, width: width, height: correctedHeight)
+        correctedScroll.frame = NSRect(x: 0, y: y, width: width, height: correctedHeight)
+        correctedScroll.autoresizingMask = [.width]
+        container.addSubview(correctedScroll)
+        y += correctedHeight
+        container.addSubview(makeSectionLabel(text: "Corrected", width: width, y: y))
+        y += labelHeight + gap
+
+        // Original (top) with Speak button
+        let speakBtnWidth: CGFloat = 90
+        let originalScroll = makeScrollableTextView(content: original, width: width - speakBtnWidth - gap, height: originalHeight)
+        originalScroll.frame = NSRect(x: 0, y: y, width: width - speakBtnWidth - gap, height: originalHeight)
+        originalScroll.autoresizingMask = [.width]
+        container.addSubview(originalScroll)
+
+        let handler = SpeakButtonHandler(text: original)
+        activeSpeakHandlers.append(handler)
+        let speakButton = NSButton(
+            title: "🔊 Speak",
+            target: handler,
+            action: #selector(SpeakButtonHandler.speak)
+        )
+        speakButton.bezelStyle = .rounded
+        speakButton.frame = NSRect(
+            x: width - speakBtnWidth,
+            y: y + (originalHeight - 28) / 2,
+            width: speakBtnWidth,
+            height: 28
+        )
+        container.addSubview(speakButton)
+
+        y += originalHeight
+        container.addSubview(makeSectionLabel(text: "Original", width: width, y: y))
+
+        alert.accessoryView = container
+        alert.informativeText = ""
+        alert.runModal()
+
+        SpeechService.shared.stop()
+        activeSpeakHandlers.removeAll()
+    }
+
+    @MainActor
+    private func makeSectionLabel(text: String, width: CGFloat, y: CGFloat) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = NSFont.boldSystemFont(ofSize: 11)
+        label.textColor = .secondaryLabelColor
+        label.frame = NSRect(x: 0, y: y, width: width, height: 18)
+        label.autoresizingMask = [.width]
+        return label
+    }
+
+    @MainActor
+    private func makeScrollableTextView(content: String, width: CGFloat, height: CGFloat) -> NSScrollView {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: width, height: height))
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.borderType = .bezelBorder
-        
-        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 380, height: 200))
-        textView.string = translatedText
+
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: width - 20, height: height))
+        textView.string = content
         textView.isEditable = false
         textView.isSelectable = true
         textView.font = NSFont.systemFont(ofSize: 13)
         textView.textContainerInset = NSSize(width: 8, height: 8)
         textView.autoresizingMask = [.width]
-        
+
         scrollView.documentView = textView
-        alert.accessoryView = scrollView
-        alert.informativeText = "" // Clear since we use accessory view
-        
-        alert.runModal()
+        return scrollView
     }
     
     func showNoTextSelected() {
