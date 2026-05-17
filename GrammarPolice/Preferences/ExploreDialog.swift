@@ -150,6 +150,12 @@ enum ExploreDialogPresenter {
     /// the Done button — both go through the shared delegate so the modal
     /// loop is always torn down).
     static func presentModal(payload: ExploreDialogPayload) {
+        // Capture the frontmost app so we can hand focus back to it after the
+        // dialog closes. Without this, NSApp.activate below would leave
+        // GrammarPolice as the frontmost app and any of its other windows
+        // (typically Preferences) would surface in place of the source app.
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 620, height: 640),
             styleMask: [.titled, .closable, .resizable],
@@ -159,6 +165,9 @@ enum ExploreDialogPresenter {
         window.title = payload.windowTitle
         window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = false
+        // Don't let this window be reused as the app's "main" window — that
+        // can also pull other app windows forward on dismissal.
+        window.hidesOnDeactivate = false
 
         let delegate = ExploreDialogWindowDelegate()
         window.delegate = delegate
@@ -182,13 +191,22 @@ enum ExploreDialogPresenter {
         window.setContentSize(size)
         window.center()
 
-        NSApp.activate(ignoringOtherApps: true)
+        // Bring just THIS window forward without globally activating the
+        // app (which would surface other app windows like Preferences).
+        window.makeKeyAndOrderFront(nil)
         NSApp.runModal(for: window)
 
-        // Cleanup. delegate is kept alive via window.delegate until here.
+        // Cleanup.
         SpeechService.shared.stop()
         window.delegate = nil
         window.orderOut(nil)
-        _ = delegate  // silence unused-warning, keep alive until end
+        _ = delegate
+
+        // Hand focus back to whatever app was frontmost before we showed the
+        // dialog, so the source app (Chrome, Cursor, etc.) regains focus
+        // instead of GrammarPolice's Preferences window.
+        if let previousApp, previousApp.bundleIdentifier != Bundle.main.bundleIdentifier {
+            previousApp.activate(options: [])
+        }
     }
 }
