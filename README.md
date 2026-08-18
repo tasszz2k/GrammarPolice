@@ -135,7 +135,7 @@ open GrammarPolice.xcodeproj
 
 ### Custom Words
 
-Protect specific words from being modified during correction:
+A built-in DevOps glossary (PR, CI/CD, kubectl, Helm, ArgoCD, and similar) is masked automatically. Add more words you do not want the model to rewrite:
 
 <!-- Add custom words screenshot -->
 ![Custom Words](docs/images/custom-words.png)
@@ -152,7 +152,7 @@ Examples:
 #### OpenAI (Recommended)
 1. Get an API key from [OpenAI](https://platform.openai.com/)
 2. Enter the key in Preferences > LLM
-3. Select model (gpt-4o-mini recommended for speed/cost balance)
+3. Select model (`gpt-5.4-mini` recommended for speed/quality; `gpt-5.4-nano` for lowest cost)
 
 #### Local LLM
 For complete privacy, use a local LLM:

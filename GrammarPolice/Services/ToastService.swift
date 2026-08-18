@@ -28,7 +28,7 @@ final class ToastService {
         )
 
         static let info = Style(
-            titleColor: .white,
+            titleColor: .labelColor,
             backgroundColor: NSColor.controlBackgroundColor.withAlphaComponent(0.95)
         )
 
@@ -39,12 +39,29 @@ final class ToastService {
     }
 
     func show(title: String, body: String, style: Style = .success, durationOverride: TimeInterval? = nil) {
+        show(title: title, attributedBody: NSAttributedString(string: body), style: style, durationOverride: durationOverride)
+    }
+
+    func showDiff(title: String, original: String, updated: String, durationOverride: TimeInterval? = nil) {
+        let body = InlineTextDiff.nsAttributed(
+            from: original,
+            to: updated,
+            baseFont: NSFont.systemFont(ofSize: 12),
+            baseColor: .labelColor,
+            insertColor: .systemGreen,
+            deleteColor: .systemRed
+        )
+        // Neutral chrome so red/green word marks stay readable.
+        show(title: title, attributedBody: body, style: .info, durationOverride: durationOverride)
+    }
+
+    func show(title: String, attributedBody: NSAttributedString, style: Style, durationOverride: TimeInterval? = nil) {
         dismiss()
 
         let duration = durationOverride ?? SettingsManager.shared.notificationDurationSec
         guard duration > 0 else { return }
 
-        let panel = makePanel(title: title, body: body, style: style)
+        let panel = makePanel(title: title, attributedBody: attributedBody, style: style)
         positionPanel(panel)
         panel.orderFrontRegardless()
         activePanel = panel
@@ -63,7 +80,7 @@ final class ToastService {
 
     // MARK: - Builders
 
-    private func makePanel(title: String, body: String, style: Style) -> NSPanel {
+    private func makePanel(title: String, attributedBody: NSAttributedString, style: Style) -> NSPanel {
         let maxWidth: CGFloat = 520
         let padding: CGFloat = 14
 
@@ -73,13 +90,16 @@ final class ToastService {
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
 
-        let bodyLabel = NSTextField(wrappingLabelWithString: body)
-        bodyLabel.font = NSFont.systemFont(ofSize: 12)
-        bodyLabel.textColor = style.titleColor
+        let bodyLabel = NSTextField(labelWithAttributedString: attributedBody)
+        bodyLabel.isEditable = false
+        bodyLabel.isSelectable = true
+        bodyLabel.drawsBackground = false
+        bodyLabel.isBezeled = false
+        bodyLabel.isBordered = false
         bodyLabel.preferredMaxLayoutWidth = maxWidth - padding * 2
         bodyLabel.lineBreakMode = .byWordWrapping
         bodyLabel.maximumNumberOfLines = 0
-        bodyLabel.isSelectable = true
+        bodyLabel.allowsEditingTextAttributes = true
 
         let titleSize = titleLabel.sizeThatFits(NSSize(width: maxWidth - padding * 2, height: .greatestFiniteMagnitude))
         let bodySize = bodyLabel.sizeThatFits(NSSize(width: maxWidth - padding * 2, height: .greatestFiniteMagnitude))

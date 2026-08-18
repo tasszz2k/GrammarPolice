@@ -32,6 +32,9 @@ struct ExploreDialogView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     originalSection
+                    if InlineTextDiff.hasChanges(from: payload.original, to: payload.primary) {
+                        diffSection
+                    }
                     primarySection
                     extendedSection
                 }
@@ -60,6 +63,26 @@ struct ExploreDialogView: View {
     private var originalSection: some View {
         sectionLayout(title: "Original", trailing: AnyView(speakButton)) {
             textBox(content: payload.original, fixedHeight: 88)
+        }
+    }
+
+    private var diffSection: some View {
+        sectionLayout(title: "Changes", trailing: nil) {
+            ScrollView {
+                Text(InlineTextDiff.attributed(from: payload.original, to: payload.primary))
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 64, maxHeight: 140)
+            .background(Color(nsColor: .textBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 

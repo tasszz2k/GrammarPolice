@@ -18,6 +18,7 @@ final class MaskingService {
     static let shared = MaskingService()
     
     private let tokenPrefix = "__CWORD_"
+    private let slackTokenPrefix = "__SMARK_"
     private let tokenSuffix = "__"
     
     private init() {}
@@ -25,16 +26,25 @@ final class MaskingService {
     // MARK: - Masking
     
     func maskCustomWords(in text: String) -> MaskingResult {
-        let customWords = CustomWordsManager.shared.allWords
-        
-        guard !customWords.isEmpty else {
-            return MaskingResult(maskedText: text, mapping: [:], tokensUsed: [], orderedOriginals: [])
-        }
-        
-        var maskedText = text
-        var mapping: [String: String] = [:]
+        // Protect Slack/markdown spans first so the LLM cannot rewrite
+        // `code`, fences, :emoji:, or <mentions/links>. Then mask glossary words
+        // only in the remaining prose.
+        let slack = maskSlackMarkup(in: text)
+        let customWords = CustomWordsManager.shared.wordsForMasking()
+
+        var maskedText = slack.maskedText
+        var mapping = slack.mapping
         var tokensUsed: [String] = []
         var tokenIndex = 0
+
+        guard !customWords.isEmpty else {
+            return MaskingResult(
+                maskedText: maskedText,
+                mapping: mapping,
+                tokensUsed: tokensUsed,
+                orderedOriginals: orderedOriginals(in: maskedText, mapping: mapping)
+            )
+        }
         
         // Sort words by length (longest first) to avoid partial replacements
         let sortedWords = customWords.sorted { $0.word.count > $1.word.count }
@@ -91,26 +101,67 @@ final class MaskingService {
             LoggingService.shared.log("Masked \(mapping.count) custom words", level: .debug)
         }
 
-        // Build text-position-ordered list of originals for fuzzy unmask fallback
-        var orderedOriginals: [String] = []
-        let scanPattern = "\(NSRegularExpression.escapedPattern(for: tokenPrefix))\\d+\(NSRegularExpression.escapedPattern(for: tokenSuffix))"
-        if let scanRegex = try? NSRegularExpression(pattern: scanPattern) {
-            let scanRange = NSRange(maskedText.startIndex..., in: maskedText)
-            for match in scanRegex.matches(in: maskedText, options: [], range: scanRange) {
-                guard let r = Range(match.range, in: maskedText) else { continue }
-                let token = String(maskedText[r])
-                if let original = mapping[token] {
-                    orderedOriginals.append(original)
-                }
-            }
-        }
-
         return MaskingResult(
             maskedText: maskedText,
             mapping: mapping,
             tokensUsed: tokensUsed,
-            orderedOriginals: orderedOriginals
+            orderedOriginals: orderedOriginals(in: maskedText, mapping: mapping)
         )
+    }
+
+    // Slack composer + mrkdwn. Mask unambiguous spans only.
+    // Leave *bold* / _italic_ / ~strike~ unmasked so inner grammar can still be fixed.
+    private func maskSlackMarkup(in text: String) -> (maskedText: String, mapping: [String: String]) {
+        let patterns = [
+            "```[\\s\\S]*?```",
+            "`[^`\\n]+`",
+            "<[^>\\n]+>",
+            ":[a-zA-Z0-9_+-]+:"
+        ]
+        var maskedText = text
+        var mapping: [String: String] = [:]
+        var tokenIndex = 0
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let searchRange = NSRange(maskedText.startIndex..., in: maskedText)
+            let matches = regex.matches(in: maskedText, options: [], range: searchRange)
+            for match in matches.reversed() {
+                guard let range = Range(match.range, in: maskedText) else { continue }
+                let original = String(maskedText[range])
+                if original.hasPrefix(slackTokenPrefix) || original.hasPrefix(tokenPrefix) {
+                    continue
+                }
+                let token = "\(slackTokenPrefix)\(tokenIndex)\(tokenSuffix)"
+                mapping[token] = original
+                maskedText.replaceSubrange(range, with: token)
+                tokenIndex += 1
+            }
+        }
+
+        if !mapping.isEmpty {
+            LoggingService.shared.log("Masked \(mapping.count) Slack markup spans", level: .debug)
+        }
+        return (maskedText, mapping)
+    }
+
+    private func orderedOriginals(in maskedText: String, mapping: [String: String]) -> [String] {
+        var ordered: [String] = []
+        let cword = "\(NSRegularExpression.escapedPattern(for: tokenPrefix))\\d+\(NSRegularExpression.escapedPattern(for: tokenSuffix))"
+        let smark = "\(NSRegularExpression.escapedPattern(for: slackTokenPrefix))\\d+\(NSRegularExpression.escapedPattern(for: tokenSuffix))"
+        let scanPattern = "(?:\(cword)|\(smark))"
+        guard let scanRegex = try? NSRegularExpression(pattern: scanPattern) else {
+            return []
+        }
+        let scanRange = NSRange(maskedText.startIndex..., in: maskedText)
+        for match in scanRegex.matches(in: maskedText, options: [], range: scanRange) {
+            guard let r = Range(match.range, in: maskedText) else { continue }
+            let token = String(maskedText[r])
+            if let original = mapping[token] {
+                ordered.append(original)
+            }
+        }
+        return ordered
     }
     
     // MARK: - Unmasking

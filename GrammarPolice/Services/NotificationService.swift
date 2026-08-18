@@ -52,8 +52,12 @@ final class NotificationService: NSObject {
     
     // MARK: - Notifications
     
-    func showGrammarCorrectionSuccess(preview: String) {
-        ToastService.shared.show(title: "Grammar Corrected", body: preview, style: .success)
+    func showGrammarCorrectionSuccess(original: String, corrected: String) {
+        if InlineTextDiff.hasChanges(from: original, to: corrected) {
+            ToastService.shared.showDiff(title: "Grammar Corrected", original: original, updated: corrected)
+        } else {
+            ToastService.shared.show(title: "Grammar Corrected", body: corrected, style: .success)
+        }
     }
 
     func showGrammarCopiedToClipboard(preview: String) {

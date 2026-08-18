@@ -123,6 +123,9 @@ struct GrammarSettingsView: View {
                         Text(format.rawValue).tag(format)
                     }
                 }
+                Text("Slack Format keeps mrkdwn (`code`, *bold*, :emoji:, mentions). Grammar still runs on the words around those markers.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             } header: {
                 Text("Output")
             }

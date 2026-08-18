@@ -70,6 +70,7 @@ struct ChatCompletionResponse: Codable {
     let id: String
     let choices: [Choice]
     let usage: Usage?
+    let service_tier: String?
 }
 
 struct APIErrorResponse: Codable {
@@ -157,10 +158,16 @@ final class LLMClient {
             // (only default 1.0 is accepted), and request minimal reasoning to
             // keep latency + hidden reasoning token cost low for short text edits.
             body["max_completion_tokens"] = effectiveMaxTokens
-            body["reasoning_effort"] = "minimal"
+            // GPT-5.4 mini/nano default to none; keep latency + hidden
+            // reasoning tokens off for short grammar/translate calls.
+            body["reasoning_effort"] = "none"
         } else {
             body["max_tokens"] = effectiveMaxTokens
             body["temperature"] = SettingsManager.shared.temperature
+        }
+
+        if SettingsManager.shared.openAIFastMode {
+            body["service_tier"] = "fast"
         }
 
         var request = URLRequest(url: url)
@@ -215,7 +222,9 @@ final class LLMClient {
                 UsageTracker.shared.record(
                     model: SettingsManager.shared.openAIModel,
                     promptTokens: usage.prompt_tokens,
-                    completionTokens: usage.completion_tokens
+                    completionTokens: usage.completion_tokens,
+                    serviceTier: completionResponse.service_tier,
+                    requestedFast: SettingsManager.shared.openAIFastMode
                 )
             }
             

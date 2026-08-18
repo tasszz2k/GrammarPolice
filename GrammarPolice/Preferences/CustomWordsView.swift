@@ -28,6 +28,13 @@ struct CustomWordsView: View {
         }
         return words.filter { $0.word.localizedCaseInsensitiveContains(searchText) }
     }
+
+    var filteredBuiltInTerms: [String] {
+        if searchText.isEmpty {
+            return DefaultDevOpsGlossary.terms
+        }
+        return DefaultDevOpsGlossary.terms.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -72,45 +79,60 @@ struct CustomWordsView: View {
             
             // Word list
             List(selection: $selectedWord) {
-                ForEach(filteredWords) { word in
-                    HStack {
-                        Text(word.word)
-                            .font(.body)
-                        
-                        Spacer()
-                        
-                        if word.caseSensitive {
-                            Text("Aa")
+                Section("Built-in DevOps") {
+                    ForEach(filteredBuiltInTerms, id: \.self) { term in
+                        HStack {
+                            Text(term)
+                                .font(.body)
+                            Spacer()
+                            Text("Built-in")
                                 .font(.caption)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.2))
-                                .cornerRadius(4)
-                        }
-                        
-                        if word.wholeWordMatch {
-                            Text("\\b")
-                                .font(.caption)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.green.opacity(0.2))
-                                .cornerRadius(4)
-                        }
-                    }
-                    .tag(word)
-                    .contextMenu {
-                        Button("Delete") {
-                            deleteWord(word)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
-                .onDelete(perform: deleteWords)
+
+                Section("Your words") {
+                    ForEach(filteredWords) { word in
+                        HStack {
+                            Text(word.word)
+                                .font(.body)
+
+                            Spacer()
+
+                            if word.caseSensitive {
+                                Text("Aa")
+                                    .font(.caption)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.2))
+                                    .cornerRadius(4)
+                            }
+
+                            if word.wholeWordMatch {
+                                Text("\\b")
+                                    .font(.caption)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(4)
+                            }
+                        }
+                        .tag(word)
+                        .contextMenu {
+                            Button("Delete") {
+                                deleteWord(word)
+                            }
+                        }
+                    }
+                    .onDelete(perform: deleteWords)
+                }
             }
             .listStyle(.inset)
             
             // Footer
             HStack {
-                Text("\(words.count) custom words")
+                Text("\(words.count) custom, \(DefaultDevOpsGlossary.terms.count) built-in")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 

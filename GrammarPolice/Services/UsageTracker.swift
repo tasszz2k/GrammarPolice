@@ -26,6 +26,10 @@ final class UsageTracker: ObservableObject {
     }
 
     private static let pricing: [String: ModelPricing] = [
+        "gpt-5.6-terra":   ModelPricing(inputPer1M: 2.00,  outputPer1M: 12.00),
+        "gpt-5.6-luna":    ModelPricing(inputPer1M: 0.20,  outputPer1M: 1.20),
+        "gpt-5.4-mini":    ModelPricing(inputPer1M: 0.75,  outputPer1M: 4.50),
+        "gpt-5.4-nano":    ModelPricing(inputPer1M: 0.20,  outputPer1M: 1.25),
         "gpt-5":           ModelPricing(inputPer1M: 1.25,  outputPer1M: 10.00),
         "gpt-5-mini":      ModelPricing(inputPer1M: 0.25,  outputPer1M: 2.00),
         "gpt-5-nano":      ModelPricing(inputPer1M: 0.05,  outputPer1M: 0.40),
@@ -56,7 +60,13 @@ final class UsageTracker: ObservableObject {
 
     // MARK: - Recording
 
-    func record(model: String, promptTokens: Int, completionTokens: Int) {
+    func record(
+        model: String,
+        promptTokens: Int,
+        completionTokens: Int,
+        serviceTier: String? = nil,
+        requestedFast: Bool = false
+    ) {
         rolloverIfNeeded()
 
         guard let price = Self.pricing[model] else {
@@ -64,14 +74,24 @@ final class UsageTracker: ObservableObject {
             return
         }
 
-        let cost = (Double(promptTokens) / 1_000_000.0) * price.inputPer1M
-                 + (Double(completionTokens) / 1_000_000.0) * price.outputPer1M
+        // Fast/priority is ~2x Standard. Prefer the tier OpenAI actually served
+        // (they may downgrade under load) and fall back to the request flag.
+        let billedFast: Bool
+        if let serviceTier {
+            billedFast = serviceTier == "fast" || serviceTier == "priority"
+        } else {
+            billedFast = requestedFast
+        }
+        let tierMultiplier = billedFast ? 2.0 : 1.0
+
+        let cost = ((Double(promptTokens) / 1_000_000.0) * price.inputPer1M
+                 + (Double(completionTokens) / 1_000_000.0) * price.outputPer1M) * tierMultiplier
 
         monthlySpendUSD += cost
         defaults.set(monthlySpendUSD, forKey: spendKey)
 
         LoggingService.shared.log(
-            "UsageTracker: +$\(String(format: "%.5f", cost)) (model=\(model), in=\(promptTokens), out=\(completionTokens)), monthTotal=$\(String(format: "%.4f", monthlySpendUSD))",
+            "UsageTracker: +$\(String(format: "%.5f", cost)) (model=\(model), tier=\(serviceTier ?? (requestedFast ? "fast?" : "default")), in=\(promptTokens), out=\(completionTokens)), monthTotal=$\(String(format: "%.4f", monthlySpendUSD))",
             level: .debug
         )
     }

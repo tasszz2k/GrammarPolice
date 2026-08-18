@@ -200,7 +200,7 @@ final class GrammarCorrectionFlow {
                 do {
                     try axService.replaceSelectedText(with: correctedText)
                     replacementDone = true
-                    notificationService.showGrammarCorrectionSuccess(preview: correctedText)
+                    notificationService.showGrammarCorrectionSuccess(original: text, corrected: correctedText)
                     LoggingService.shared.logReplacement(success: true, method: "AX")
                 } catch {
                     LoggingService.shared.log("AX replacement failed: \(error)", level: .debug)
@@ -213,7 +213,7 @@ final class GrammarCorrectionFlow {
                 clipboardService.simulatePaste()
                 replacementDone = true
                 try? await Task.sleep(nanoseconds: 200_000_000)
-                notificationService.showGrammarCorrectionSuccess(preview: correctedText)
+                notificationService.showGrammarCorrectionSuccess(original: text, corrected: correctedText)
                 LoggingService.shared.logReplacement(success: true, method: "Clipboard+Paste")
             }
 

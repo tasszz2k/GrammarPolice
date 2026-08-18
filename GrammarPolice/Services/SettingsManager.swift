@@ -25,11 +25,43 @@ final class SettingsManager: ObservableObject {
     // MARK: - Persistence
     
     private static func loadSettings() -> AppSettings {
-        guard let data = UserDefaults.standard.data(forKey: "GrammarPoliceSettings"),
-              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+        guard let stored = UserDefaults.standard.data(forKey: "GrammarPoliceSettings") else {
             return AppSettings()
         }
+        // New Codable keys fail decode on older JSON and would wipe all settings.
+        let data = dataWithMissingFastModeDefault(stored)
+        guard var settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+            return AppSettings()
+        }
+        if migrateDeprecatedOpenAIModel(&settings),
+           let encoded = try? JSONEncoder().encode(settings) {
+            UserDefaults.standard.set(encoded, forKey: "GrammarPoliceSettings")
+        }
         return settings
+    }
+
+    private static func dataWithMissingFastModeDefault(_ data: Data) -> Data {
+        guard var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              obj["openAIFastMode"] == nil else {
+            return data
+        }
+        obj["openAIFastMode"] = true
+        return (try? JSONSerialization.data(withJSONObject: obj)) ?? data
+    }
+
+    // gpt-5-mini / gpt-5-nano are deprecated; map to 5.4 replacements
+    // so existing installs do not keep calling retired IDs.
+    private static func migrateDeprecatedOpenAIModel(_ settings: inout AppSettings) -> Bool {
+        switch settings.openAIModel {
+        case "gpt-5-mini":
+            settings.openAIModel = "gpt-5.4-mini"
+            return true
+        case "gpt-5-nano":
+            settings.openAIModel = "gpt-5.4-nano"
+            return true
+        default:
+            return false
+        }
     }
     
     private func saveSettings() {
@@ -175,6 +207,14 @@ final class SettingsManager: ObservableObject {
         get { settings.openAIModel }
         set {
             settings.openAIModel = newValue
+            saveSettings()
+        }
+    }
+
+    var openAIFastMode: Bool {
+        get { settings.openAIFastMode }
+        set {
+            settings.openAIFastMode = newValue
             saveSettings()
         }
     }
@@ -353,6 +393,7 @@ final class SettingsManager: ObservableObject {
         }
 
         systemPrompt = injectGlobalContext(into: systemPrompt)
+        systemPrompt = injectMarkupPreserveRules(into: systemPrompt)
 
         let userPrompt: String
         if let ctx = context, !ctx.isEmpty, ctx != maskedText {
@@ -439,7 +480,7 @@ final class SettingsManager: ObservableObject {
         Output MUST be split into TWO blocks separated by a line containing EXACTLY:
         \(Self.exploreSeparator)
 
-        BLOCK 1 (before the separator): the corrected text only. Apply only the corrections you would normally make in the current grammar mode. Preserve meaning, voice, and structure. Copy any placeholder tokens matching __CWORD_<digits>__ verbatim. No commentary, no labels, no surrounding quotes.
+        BLOCK 1 (before the separator): the corrected text only. Apply only the corrections you would normally make in the current grammar mode. Preserve meaning, voice, and structure. Copy any placeholder tokens matching __CWORD_<digits>__ or __SMARK_<digits>__ verbatim. No commentary, no labels, no surrounding quotes.
 
         BLOCK 2 (after the separator): a compact lesson, plain text, no markdown fences. Use these section labels exactly, in order, and include only the sections that apply:
 
@@ -462,6 +503,7 @@ final class SettingsManager: ObservableObject {
         Keep it dense. No filler. No restating the input. Always emit both blocks and the separator.
         """
         systemPrompt = injectGlobalContext(into: systemPrompt)
+        systemPrompt = injectMarkupPreserveRules(into: systemPrompt)
 
         let userPromptTemplate = "Correct the following text and produce the two-block output."
         let userPrompt: String
@@ -471,6 +513,20 @@ final class SettingsManager: ObservableObject {
             userPrompt = "\(userPromptTemplate)\n\nText:\n\(maskedText)"
         }
         return (systemPrompt, userPrompt)
+    }
+
+    private func injectMarkupPreserveRules(into systemPrompt: String) -> String {
+        let rules = """
+        Slack/markdown markup must survive unchanged:
+        - Keep `inline code`, ```fenced blocks```, *bold*, _italic_, ~strike~, :emoji_name:, <@id>, <#id>, and <url|label> exactly as written.
+        - Do not convert markup to plain text, do not wrap the whole reply in extra fences, and do not expand :emoji_name: into unicode.
+        - Copy placeholder tokens __CWORD_<digits>__ and __SMARK_<digits>__ verbatim, including the digits.
+        - Edit prose words only. Keep original line breaks and list markers.
+        """
+        if systemPrompt.isEmpty {
+            return rules
+        }
+        return "\(systemPrompt)\n\n\(rules)"
     }
 
     private func injectGlobalContext(into systemPrompt: String) -> String {

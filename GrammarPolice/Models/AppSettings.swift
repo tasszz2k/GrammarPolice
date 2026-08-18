@@ -126,7 +126,7 @@ struct AppSettings: Codable {
     var grammarMode: GrammarMode = .minimal
     var customSystemPrompt: String = ""
     var customUserPrompt: String = ""
-    var outputFormat: OutputFormat = .original
+    var outputFormat: OutputFormat = .slack
     var contextWindowChars: Int = 400
     var globalContext: String = ""
     var grammarExploreEnabled: Bool = false
@@ -138,7 +138,8 @@ struct AppSettings: Codable {
     
     // LLM
     var llmBackend: LLMBackend = .openAI
-    var openAIModel: String = "gpt-5-mini"
+    var openAIModel: String = "gpt-5.4-mini"
+    var openAIFastMode: Bool = true
     var temperature: Double = 0.2
     var maxTokens: Int = 500
     var timeout: TimeInterval = 60.0

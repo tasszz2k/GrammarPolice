@@ -112,6 +112,14 @@ final class CustomWordsManager {
     var allWords: [CustomWord] {
         return words
     }
+
+    // User list wins on the same spelling so a custom override can relax
+    // or tighten a built-in term without editing the bundled glossary.
+    func wordsForMasking() -> [CustomWord] {
+        let userKeys = Set(words.map { $0.word.lowercased() })
+        let bundled = DefaultDevOpsGlossary.words().filter { !userKeys.contains($0.word.lowercased()) }
+        return bundled + words
+    }
     
     func addWord(_ word: CustomWord) {
         words.append(word)

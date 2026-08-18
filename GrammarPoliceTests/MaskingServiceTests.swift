@@ -253,5 +253,47 @@ final class MaskingServiceTests: XCTestCase {
         // Then
         XCTAssertEqual(unmaskedText, originalText)
     }
+
+    func testBuiltInGlossaryMasksPR() {
+        let text = "Open a PR after the rollout."
+        let result = maskingService.maskCustomWords(in: text)
+        XCTAssertFalse(result.maskedText.contains("PR"))
+        XCTAssertTrue(result.maskedText.contains("__CWORD_"))
+        XCTAssertEqual(maskingService.unmaskTokens(in: result.maskedText, using: result.mapping), text)
+    }
+
+    // MARK: - Slack markup
+
+    func testSlackInlineCodeAndEmojiMasked() {
+        let text = "FYI: use `helm` and :white_check_mark: after the rollout."
+
+        let result = maskingService.maskCustomWords(in: text)
+
+        XCTAssertFalse(result.maskedText.contains("`helm`"))
+        XCTAssertFalse(result.maskedText.contains(":white_check_mark:"))
+        XCTAssertTrue(result.maskedText.contains("__SMARK_"))
+        XCTAssertEqual(maskingService.unmaskTokens(in: result.maskedText, using: result.mapping), text)
+    }
+
+    func testSlackFenceAndMentionMasked() {
+        let text = "see <@U123> ```\n// or code\n``` please"
+
+        let result = maskingService.maskCustomWords(in: text)
+
+        XCTAssertFalse(result.maskedText.contains("```"))
+        XCTAssertFalse(result.maskedText.contains("<@U123>"))
+        XCTAssertEqual(maskingService.unmaskTokens(in: result.maskedText, using: result.mapping), text)
+    }
+
+    func testCustomWordSkippedInsideInlineCode() {
+        CustomWordsManager.shared.addWord(CustomWord(word: "helm", caseSensitive: false, wholeWordMatch: true))
+        let text = "run `helm` then helm upgrade"
+
+        let result = maskingService.maskCustomWords(in: text)
+
+        XCTAssertTrue(result.maskedText.contains("__SMARK_"))
+        XCTAssertTrue(result.maskedText.contains("__CWORD_"))
+        XCTAssertEqual(maskingService.unmaskTokens(in: result.maskedText, using: result.mapping), text)
+    }
 }
 
