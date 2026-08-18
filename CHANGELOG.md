@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.18](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.17...v0.0.18) (2026-08-18)
+
+
+### Features
+
+* keep Slack markup and refresh OpenAI defaults ([7042652](https://github.com/tasszz2k/GrammarPolice/commit/7042652d97d8724703ed1fc1d11c685e2271e1ae))
+
 ## [0.0.17](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.16...v0.0.17) (2026-05-17)
 
 
