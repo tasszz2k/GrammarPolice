@@ -107,7 +107,8 @@ final class NotificationService: NSObject {
             primaryLabel: "Corrected",
             primary: corrected,
             extendedLabel: "Lesson",
-            extended: lesson
+            extended: lesson,
+            showInlineDiff: true
         ))
     }
 

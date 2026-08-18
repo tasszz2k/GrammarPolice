@@ -18,6 +18,7 @@ struct ExploreDialogPayload {
     let primary: String
     let extendedLabel: String
     let extended: String
+    var showInlineDiff: Bool = false
 }
 
 struct ExploreDialogView: View {
@@ -32,7 +33,8 @@ struct ExploreDialogView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     originalSection
-                    if InlineTextDiff.hasChanges(from: payload.original, to: payload.primary) {
+                    if payload.showInlineDiff,
+                       InlineTextDiff.hasChanges(from: payload.original, to: payload.primary) {
                         diffSection
                     }
                     primarySection
