@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.19](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.18...v0.0.19) (2026-08-18)
+
+
+### Bug Fixes
+
+* **dialog:** hide inline diff on translation explore ([86d8efe](https://github.com/tasszz2k/GrammarPolice/commit/86d8efe6ee1b311d3880b3fea468db153d66922a))
+
 ## [0.0.18](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.17...v0.0.18) (2026-08-18)
 
 
