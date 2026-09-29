@@ -5,6 +5,13 @@ All notable changes to GrammarPolice will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.20](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.19...v0.0.20) (2026-09-29)
+
+
+### Bug Fixes
+
+* **history:** use app-owned SwiftData store and stop autosave retry loop ([9b82e9d](https://github.com/tasszz2k/GrammarPolice/commit/9b82e9dcae5b4ca5452c6a6de0a3a9b93569fd7d))
+
 ## [0.0.19](https://github.com/tasszz2k/GrammarPolice/compare/v0.0.18...v0.0.19) (2026-08-18)
 
 
