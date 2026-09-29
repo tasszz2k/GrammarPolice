@@ -40,14 +40,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup
     
     private func setupModelContainer() {
+        let schema = Schema([HistoryEntry.self])
         do {
-            let schema = Schema([HistoryEntry.self])
-            let configuration = ModelConfiguration(isStoredInMemoryOnly: false)
+            let storeURL = try Self.historyStoreURL()
+            let configuration = ModelConfiguration(schema: schema, url: storeURL)
             modelContainer = try ModelContainer(for: schema, configurations: [configuration])
-            LoggingService.shared.log("SwiftData model container initialized", level: .info)
+            LoggingService.shared.log("SwiftData model container initialized at \(storeURL.path)", level: .info)
         } catch {
-            LoggingService.shared.log("Failed to create model container: \(error)", level: .error)
+            LoggingService.shared.log("Failed to create model container: \(error). Falling back to in-memory history.", level: .error)
+            let inMemory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            modelContainer = try? ModelContainer(for: schema, configurations: [inMemory])
         }
+
+        // Every write path calls save() explicitly. With autosave on, a save
+        // that fails leaves inserts dirty and the autosave timer retries all of
+        // them forever on the main thread.
+        modelContainer?.mainContext.autosaveEnabled = false
+    }
+
+    // The default ModelConfiguration writes to ~/Library/Application Support/default.store.
+    // This app is not sandboxed, so that path is shared with every other
+    // non-sandboxed SwiftData app on the machine, and another app's schema can
+    // take it over and make every save fail.
+    private static func historyStoreURL() throws -> URL {
+        let appSupport = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.tasszz2k.GrammarPolice"
+        let folder = appSupport.appendingPathComponent(bundleID, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder.appendingPathComponent("History.store")
     }
     
     private func setupMenubar() {
@@ -78,8 +103,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func openPreferences() {
         if preferencesWindow == nil {
+            guard let container = modelContainer else {
+                LoggingService.shared.log("Cannot open preferences: no model container", level: .error)
+                return
+            }
             let preferencesView = PreferencesView()
-                .environment(\.modelContext, modelContainer?.mainContext ?? ModelContext(try! ModelContainer(for: HistoryEntry.self)))
+                .environment(\.modelContext, container.mainContext)
             
             preferencesWindow = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),

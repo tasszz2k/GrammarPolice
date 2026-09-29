@@ -26,6 +26,9 @@ final class HistoryStore {
             try modelContext.save()
             LoggingService.shared.log("History entry saved", level: .debug)
         } catch {
+            // Drop the pending insert. Without this it stays dirty in the shared
+            // main context and every later save retries it, so failures pile up.
+            modelContext.rollback()
             LoggingService.shared.log("Failed to save history entry: \(error)", level: .error)
         }
     }
@@ -116,6 +119,7 @@ final class HistoryStore {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             LoggingService.shared.log("Failed to delete history entry: \(error)", level: .error)
         }
     }
@@ -128,6 +132,7 @@ final class HistoryStore {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             LoggingService.shared.log("Failed to delete history entries: \(error)", level: .error)
         }
     }
@@ -151,6 +156,7 @@ final class HistoryStore {
             try modelContext.save()
             LoggingService.shared.log("Purged \(oldEntries.count) entries older than \(days) days", level: .info)
         } catch {
+            modelContext.rollback()
             LoggingService.shared.log("Failed to purge old entries: \(error)", level: .error)
         }
     }
@@ -161,6 +167,7 @@ final class HistoryStore {
             try modelContext.save()
             LoggingService.shared.log("All history entries deleted", level: .info)
         } catch {
+            modelContext.rollback()
             LoggingService.shared.log("Failed to delete all entries: \(error)", level: .error)
         }
     }

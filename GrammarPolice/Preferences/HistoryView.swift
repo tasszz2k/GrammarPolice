@@ -179,10 +179,8 @@ struct HistoryView: View {
     }
     
     private func deleteEntries(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(filteredEntries[index])
-        }
-        try? modelContext.save()
+        let store = HistoryStore(modelContext: modelContext)
+        store.deleteEntries(offsets.map { filteredEntries[$0] })
     }
     
     private func purgeOldEntries() {
